@@ -1,0 +1,12 @@
+# Build / temp
+*.log
+*.tmp
+dist/
+build/
+__pycache__/
+*.pyc
+
+# Secrets / large data (by design for this supporting repo)
+*.age
+secrets/
+fixtures/large/
