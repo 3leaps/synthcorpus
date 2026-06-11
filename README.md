@@ -1,22 +1,11 @@
-# synthcorpus
+# synthcorpus — real-shaped, never real.
 
-Synthetic corpus and supporting data fixtures / tooling for decernor and seclusor (3leaps).
+▎ The shared synthetic-fixture corpus for the 3 Leaps galaxy's security detectors.
 
-**Status**: Private to start.
+## Elevator
 
-## Purpose
-- Provide controlled, synthetic datasets and fixtures
-- Support testing, fuzzing, and validation of decernor + seclusor components
-- Keep sensitive or large test data out of the main library repos
+synthcorpus is the shared, synthetic security-fixture corpus for the 3 Leaps galaxy's detectors — decernor first, seclusor and others next. It commits provably-bogus, scanner-safe specimens of GPG, minisign, and SSH key material — including the passphrase-protected and deliberately-malformed shapes detectors trip on — plus golden manifests pinned against the real tool's output. For the cases that demand actual cryptographic material, it ships an on-demand generator that produces real-but-throwaway keypairs into an isolated dogfooding area that is never a git repo and never committed. The whole design turns on one line: generated-real material stays out of git; only synthetic fixtures land in the tree. That keeps a detector like decernor honest — provable against realistic, every-shape key material, without a single real credential ever entering a repo.
 
-## Briefs
-Internal briefs live in the sibling planning directory:
-~/dev/3leaps/planning/synthcorpus/
+---
 
-Numbering: `brief-sc-<num>` (sc = synthcorpus)
-
-See planning/synthcorpus/README.md for the scheme and current briefs.
-
-## Local clone
-Cloned to /Users/davethompson/dev/3leaps/synthcorpus from 3leaps/synthcorpus (GitHub).
-
+One-line: Synthetic, scanner-safe security-fixture corpus + throwaway-key generator for 3 Leaps detectors (decernor, seclusor). Real-shaped, never real.
