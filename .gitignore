@@ -5,6 +5,10 @@ dist/
 build/
 __pycache__/
 *.pyc
+/bin/
+/.gocache/
+/.gomodcache/
+/dogfooding/
 
 # Secrets / large data (by design for this supporting repo)
 *.age
