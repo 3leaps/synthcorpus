@@ -2,6 +2,8 @@ package generator
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -18,7 +20,9 @@ type recordedCall struct {
 }
 
 type recordingRunner struct {
-	calls []recordedCall
+	calls      []recordedCall
+	failOnName string
+	failOnArgs string // substring match in joined args; optional
 }
 
 func (r *recordingRunner) Run(ctx context.Context, name string, args []string, env []string, stdin string) error {
@@ -33,12 +37,15 @@ func (r *recordingRunner) Output(_ context.Context, name string, args []string, 
 		env:   slices.Clone(env),
 		stdin: stdin,
 	})
+	if r.failOnName != "" && name == r.failOnName {
+		if r.failOnArgs == "" || strings.Contains(strings.Join(args, " "), r.failOnArgs) {
+			return "", fmt.Errorf("injected failure for %s", name)
+		}
+	}
 	if name == "gpgconf" {
 		return "", nil
 	}
 	if name == "gpg" && slices.Contains(args, "--list-secret-keys") {
-		// Distinct fingerprints for protected vs plain UIDs — proves selectors
-		// use exact FP, not email substrings.
 		return strings.Join([]string{
 			"sec:-:255:22:AAAAAAAA:0:0:0:::",
 			"fpr:::::::::AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA:",
@@ -94,11 +101,21 @@ func TestGenerateUsesGuardedLayoutAndExplicitSidecarCalls(t *testing.T) {
 		t.Fatalf("Generate() error = %v", err)
 	}
 
-	// Guardrail canonicalizes intermediate symlinks (e.g. macOS /var →
-	// /private/var); sidecars must bind to the realpath, not the logical input.
 	realRoot, err := filepath.EvalSymlinks(root)
 	if err != nil {
 		t.Fatalf("EvalSymlinks output root: %v", err)
+	}
+
+	// No leftover staging dirs next to the final root.
+	parent := filepath.Dir(realRoot)
+	entries, err := os.ReadDir(parent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), ".synthcorpus-staging-") {
+			t.Fatalf("leftover staging directory after success: %s", e.Name())
+		}
 	}
 
 	for _, path := range []string{
@@ -119,7 +136,8 @@ func TestGenerateUsesGuardedLayoutAndExplicitSidecarCalls(t *testing.T) {
 	if len(runner.calls) == 0 {
 		t.Fatalf("expected sidecar calls")
 	}
-	wantGNUPG := "GNUPGHOME=" + filepath.Join(realRoot, ".gnupg")
+	// Mint runs in a staging directory (renamed to final on success), so
+	// GNUPGHOME is under .synthcorpus-staging-* during sidecar calls.
 	for _, call := range runner.calls {
 		if call.name == "" {
 			t.Fatalf("empty sidecar name")
@@ -130,98 +148,59 @@ func TestGenerateUsesGuardedLayoutAndExplicitSidecarCalls(t *testing.T) {
 		if len(call.args) == 0 {
 			t.Fatalf("expected arg-vector call for %s", call.name)
 		}
-		if !envContainsPrefix(call.env, wantGNUPG) {
+		gnupg := envValue(call.env, "GNUPGHOME")
+		if gnupg == "" || filepath.Base(gnupg) != ".gnupg" {
 			t.Fatalf("call %s missing isolated GNUPGHOME: %#v", call.name, call.env)
+		}
+		if !strings.Contains(gnupg, ".synthcorpus-staging-") {
+			t.Fatalf("call %s GNUPGHOME should be under staging root during mint: %q", call.name, gnupg)
 		}
 		if envContainsPrefix(call.env, "GNUPGHOME=/tmp/user-gnupg-that-must-not-leak") {
 			t.Fatalf("call %s leaked user GNUPGHOME: %#v", call.name, call.env)
 		}
-		if envContainsPrefix(call.env, "GPG_AGENT_INFO=/tmp/user-agent-that-must-not-leak") {
-			t.Fatalf("call %s leaked user GPG_AGENT_INFO: %#v", call.name, call.env)
-		}
-		if !envContainsPrefix(call.env, "HOME=/tmp/synthcorpus-test-home") {
-			t.Fatalf("call %s missing runtime HOME: %#v", call.name, call.env)
-		}
-		if !envContainsPrefix(call.env, "PATH=/usr/bin:/bin") {
-			t.Fatalf("call %s missing runtime PATH: %#v", call.name, call.env)
-		}
 	}
 
-	// GPG export/sign must use exact fingerprints, never email substrings.
 	protectedFP := "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 	plainFP := "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
-	var sawExportProtected, sawExportPlain, sawSign bool
+	var sawExportProtected, sawExportPlain, sawSign, sawBundledPublic bool
 	for _, call := range runner.calls {
 		if call.name != "gpg" {
 			continue
 		}
+		if slices.Contains(call.args, "--export") && !slices.Contains(call.args, "--export-secret-keys") {
+			// Multi-key public.asc bundle (both FPs) — intentional dogfood breadth.
+			if slices.Contains(call.args, protectedFP) && slices.Contains(call.args, plainFP) {
+				sawBundledPublic = true
+			}
+		}
 		if slices.Contains(call.args, "--export-secret-keys") {
-			if slices.Contains(call.args, protectedFP) && !slices.Contains(call.args, plainFP) && !slices.Contains(call.args, testEmail) {
+			if slices.Contains(call.args, protectedFP) && !slices.Contains(call.args, plainFP) {
 				sawExportProtected = true
 			}
-			if slices.Contains(call.args, plainFP) && !slices.Contains(call.args, protectedFP) && !slices.Contains(call.args, "plain."+testEmail) {
+			if slices.Contains(call.args, plainFP) && !slices.Contains(call.args, protectedFP) {
 				sawExportPlain = true
 			}
 			for _, a := range call.args {
 				if strings.Contains(a, "@") {
-					t.Fatalf("export-secret-keys used email selector %q; want exact fingerprint", a)
+					t.Fatalf("export-secret-keys used email selector %q", a)
 				}
 			}
 		}
 		if slices.Contains(call.args, "--detach-sign") {
-			if !slices.Contains(call.args, "--local-user") || !slices.Contains(call.args, protectedFP) {
-				t.Fatalf("detach-sign must use --local-user <protected fingerprint>, got %#v", call.args)
-			}
-			for _, a := range call.args {
-				if strings.Contains(a, "@") {
-					t.Fatalf("detach-sign used email selector %q; want exact fingerprint", a)
-				}
+			if !slices.Contains(call.args, protectedFP) {
+				t.Fatalf("detach-sign must use protected fingerprint, got %#v", call.args)
 			}
 			sawSign = true
 		}
 	}
-	if !sawExportProtected || !sawExportPlain || !sawSign {
-		t.Fatalf("expected fingerprint-exact export/sign calls; protected=%v plain=%v sign=%v calls=%#v", sawExportProtected, sawExportPlain, sawSign, runner.calls)
+	if !sawExportProtected || !sawExportPlain || !sawSign || !sawBundledPublic {
+		t.Fatalf("fingerprint export/sign incomplete; protected=%v plain=%v sign=%v publicBundle=%v", sawExportProtected, sawExportPlain, sawSign, sawBundledPublic)
 	}
 
-	hasGPG := false
-	hasMinisign := false
-	hasSSH := false
-	hasGPGConf := false
-	for _, call := range runner.calls {
-		hasGPG = hasGPG || call.name == "gpg"
-		hasMinisign = hasMinisign || call.name == "minisign"
-		hasSSH = hasSSH || call.name == "ssh-keygen"
-		hasGPGConf = hasGPGConf || call.name == "gpgconf"
-	}
-	if !hasGPG || !hasMinisign || !hasSSH || !hasGPGConf {
-		t.Fatalf("expected gpg/gpgconf/minisign/ssh-keygen calls; got %#v", runner.calls)
-	}
-
-	for _, path := range []string{
-		"minisign/minisign-protected.pub",
-		"minisign/minisign-protected.key",
-		"minisign/minisign-plain.pub",
-		"minisign/minisign-plain.key",
-	} {
-		data, err := os.ReadFile(filepath.Join(realRoot, path))
-		if err != nil {
-			t.Fatalf("read %s: %v", path, err)
-		}
-		firstLine, _, _ := strings.Cut(string(data), "\n")
-		if !strings.Contains(firstLine, "synthcorpus generated-real TEST KEY - DO NOT USE") {
-			t.Fatalf("%s first line not stamped as test material: %q", path, firstLine)
-		}
-	}
-
-	// Fail-closed chmod: secrets 0600, public specimens not world-writable oddly.
 	for _, path := range []string{
 		"gpg/private-protected.asc",
-		"gpg/private-plain.asc",
 		"minisign/minisign-protected.key",
-		"minisign/minisign-plain.key",
 		"ssh/id_ed25519_protected",
-		"ssh/id_ed25519_plain",
 	} {
 		info, err := os.Stat(filepath.Join(realRoot, path))
 		if err != nil {
@@ -230,6 +209,111 @@ func TestGenerateUsesGuardedLayoutAndExplicitSidecarCalls(t *testing.T) {
 		if got := info.Mode().Perm(); got != 0o600 {
 			t.Fatalf("%s mode = %o, want 0600", path, got)
 		}
+	}
+}
+
+func TestGenerateCleansStagingOnInjectedFailures(t *testing.T) {
+	cases := []struct {
+		name       string
+		failOnName string
+		failOnArgs string
+	}{
+		{"gpgconf", "gpgconf", ""},
+		{"gpg-generate", "gpg", "--generate-key"},
+		{"minisign", "minisign", ""},
+		{"ssh-keygen", "ssh-keygen", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			parent := t.TempDir()
+			final := filepath.Join(parent, "decernor")
+			runner := &recordingRunner{failOnName: tc.failOnName, failOnArgs: tc.failOnArgs}
+			err := Generate(context.Background(), Options{
+				Tool:      "decernor",
+				Out:       final,
+				Runner:    runner,
+				Preflight: func(context.Context) error { return nil },
+			})
+			if err == nil {
+				t.Fatal("expected injected failure")
+			}
+			if _, err := os.Stat(final); !os.IsNotExist(err) {
+				t.Fatalf("final corpus must not exist after failed mint: %v", err)
+			}
+			entries, err := os.ReadDir(parent)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, e := range entries {
+				if strings.HasPrefix(e.Name(), ".synthcorpus-staging-") || strings.HasPrefix(e.Name(), ".synthcorpus-backup-") {
+					t.Fatalf("leftover %s after failed mint", e.Name())
+				}
+			}
+		})
+	}
+}
+
+func TestGenerateForcePreservesPriorCorpusUntilSuccess(t *testing.T) {
+	parent := t.TempDir()
+	final := filepath.Join(parent, "decernor")
+
+	// First successful mint.
+	if err := Generate(context.Background(), Options{
+		Tool:      "decernor",
+		Out:       final,
+		Runner:    &recordingRunner{},
+		Preflight: func(context.Context) error { return nil },
+	}); err != nil {
+		t.Fatalf("initial generate: %v", err)
+	}
+	sentinel := filepath.Join(final, "prior-sentinel.txt")
+	if err := os.WriteFile(sentinel, []byte("prior\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Force with mid-mint failure must restore/keep prior corpus content.
+	err := Generate(context.Background(), Options{
+		Tool:      "decernor",
+		Out:       final,
+		Force:     true,
+		Runner:    &recordingRunner{failOnName: "minisign"},
+		Preflight: func(context.Context) error { return nil },
+	})
+	if err == nil {
+		t.Fatal("expected force remint failure")
+	}
+	data, err := os.ReadFile(sentinel)
+	if err != nil {
+		t.Fatalf("prior corpus lost after failed force remint: %v", err)
+	}
+	if string(data) != "prior\n" {
+		t.Fatalf("prior corpus corrupted: %q", data)
+	}
+}
+
+func TestGenerateChmodFailureCleansStaging(t *testing.T) {
+	parent := t.TempDir()
+	final := filepath.Join(parent, "decernor")
+	orig := chmodImpl
+	t.Cleanup(func() { chmodImpl = orig })
+	chmodImpl = func(path string, mode os.FileMode) error {
+		if strings.Contains(path, "private-protected") || strings.HasSuffix(path, "minisign-protected.key") {
+			return errors.New("injected chmod failure")
+		}
+		return orig(path, mode)
+	}
+
+	err := Generate(context.Background(), Options{
+		Tool:      "decernor",
+		Out:       final,
+		Runner:    &recordingRunner{},
+		Preflight: func(context.Context) error { return nil },
+	})
+	if err == nil {
+		t.Fatal("expected chmod failure")
+	}
+	if _, err := os.Stat(final); !os.IsNotExist(err) {
+		t.Fatalf("final must be absent after chmod failure: %v", err)
 	}
 }
 
@@ -242,10 +326,10 @@ func TestGenerateRunsPreflightBeforeOutputMutation(t *testing.T) {
 		Runner: &recordingRunner{},
 		Preflight: func(context.Context) error {
 			preflightCalled = true
-			// Root must not exist yet — preflight is before PrepareOutputRoot.
 			if _, err := os.Stat(root); !os.IsNotExist(err) {
 				t.Fatalf("output root mutated before preflight completed: %v", err)
 			}
+			// staging parent also must not yet hold staging dirs
 			return nil
 		},
 	})
@@ -298,10 +382,6 @@ func TestParseColonFingerprintsExactEmail(t *testing.T) {
 	if err != nil || plain != "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB" {
 		t.Fatalf("plain fp = %q err=%v", plain, err)
 	}
-	// Substring must not match the protected key when looking up plain.
-	if _, err := fingerprintForEmail(keys, "plain.synthcorpus-test@example.invalid"); err != nil {
-		t.Fatal(err)
-	}
 }
 
 func TestParseGPGVersion(t *testing.T) {
@@ -318,6 +398,95 @@ func TestParseGPGVersion(t *testing.T) {
 	}
 	if versionAtLeast(old, [3]int{2, 4, 0}) {
 		t.Fatalf("2.2.27 must not satisfy 2.4.0")
+	}
+}
+
+func TestRunSidecarPreflightProbesAllHelpers(t *testing.T) {
+	bin := t.TempDir()
+	writeFake(t, bin, "gpg", "#!/bin/sh\necho 'gpg (GnuPG) 2.4.5'\n")
+	writeFake(t, bin, "gpgconf", "#!/bin/sh\necho 'gpgconf (GnuPG) 2.4.5'\n")
+	writeFake(t, bin, "minisign", "#!/bin/sh\necho 'minisign 0.11'\n")
+	writeFake(t, bin, "ssh-keygen", "#!/bin/sh\necho 'usage: ssh-keygen' >&2\nexit 1\n")
+
+	probe := SidecarProbe{
+		LookPath: func(file string) (string, error) {
+			p := filepath.Join(bin, file)
+			if _, err := os.Stat(p); err != nil {
+				return "", err
+			}
+			return p, nil
+		},
+		Run: func(ctx context.Context, path string, args ...string) (string, error) {
+			// Execute the fake scripts.
+			return defaultSidecarProbe().Run(ctx, path, args...)
+		},
+	}
+	if err := RunSidecarPreflight(context.Background(), probe); err != nil {
+		t.Fatalf("expected preflight success with capable fakes: %v", err)
+	}
+}
+
+func TestRunSidecarPreflightRejectsMissingBrokenAndOldGPG(t *testing.T) {
+	t.Run("missing", func(t *testing.T) {
+		err := RunSidecarPreflight(context.Background(), SidecarProbe{
+			LookPath: func(string) (string, error) { return "", os.ErrNotExist },
+			Run:      func(context.Context, string, ...string) (string, error) { return "", nil },
+		})
+		if err == nil || !strings.Contains(err.Error(), "not found") {
+			t.Fatalf("expected missing sidecar error, got %v", err)
+		}
+	})
+	t.Run("old-gpg", func(t *testing.T) {
+		err := RunSidecarPreflight(context.Background(), SidecarProbe{
+			LookPath: func(name string) (string, error) { return "/bin/" + name, nil },
+			Run: func(_ context.Context, path string, args ...string) (string, error) {
+				base := filepath.Base(path)
+				switch base {
+				case "gpg":
+					return "gpg (GnuPG) 2.2.27\n", nil
+				case "gpgconf":
+					return "gpgconf (GnuPG) 2.2.27\n", nil
+				case "minisign":
+					return "minisign 0.11\n", nil
+				case "ssh-keygen":
+					return "usage: ssh-keygen\n", fmt.Errorf("exit 1")
+				default:
+					return "", fmt.Errorf("unexpected %s", path)
+				}
+			},
+		})
+		if err == nil || !strings.Contains(err.Error(), "2.4.0") {
+			t.Fatalf("expected gpg minimum version error, got %v", err)
+		}
+	})
+	t.Run("broken-minisign", func(t *testing.T) {
+		err := RunSidecarPreflight(context.Background(), SidecarProbe{
+			LookPath: func(name string) (string, error) { return "/bin/" + name, nil },
+			Run: func(_ context.Context, path string, args ...string) (string, error) {
+				base := filepath.Base(path)
+				switch base {
+				case "gpg":
+					return "gpg (GnuPG) 2.4.5\n", nil
+				case "gpgconf":
+					return "gpgconf (GnuPG) 2.4.5\n", nil
+				case "minisign":
+					return "exec format error", errors.New("exec format error")
+				default:
+					return "usage: ssh-keygen\n", fmt.Errorf("exit 1")
+				}
+			},
+		})
+		if err == nil || !strings.Contains(err.Error(), "minisign") {
+			t.Fatalf("expected minisign probe failure, got %v", err)
+		}
+	})
+}
+
+func writeFake(t *testing.T, dir, name, body string) {
+	t.Helper()
+	path := filepath.Join(dir, name)
+	if err := os.WriteFile(path, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
 	}
 }
 

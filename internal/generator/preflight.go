@@ -2,6 +2,7 @@ package generator
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strconv"
@@ -12,31 +13,148 @@ import (
 // gpgconf is required so deep GNUPGHOME paths can create a short agent socketdir.
 var requiredSidecars = []string{"gpg", "gpgconf", "minisign", "ssh-keygen"}
 
-// DefaultSidecarPreflight checks PATH presence and minimum versions before any
-// output mutation or mint. Clear install diagnostics; fail closed.
+// SidecarProbe injects PATH lookup and non-mutating capability probes so unit
+// tests can supply fake executables without real crypto tooling.
+type SidecarProbe struct {
+	LookPath func(file string) (string, error)
+	// Run executes path with args and returns combined stdout+stderr.
+	// Non-zero exit should return err (typically *exec.ExitError) with output.
+	Run func(ctx context.Context, path string, args ...string) (output string, err error)
+}
+
+func defaultSidecarProbe() SidecarProbe {
+	return SidecarProbe{
+		LookPath: exec.LookPath,
+		Run: func(ctx context.Context, path string, args ...string) (string, error) {
+			cmd := exec.CommandContext(ctx, path, args...)
+			out, err := cmd.CombinedOutput()
+			return string(out), err
+		},
+	}
+}
+
+// DefaultSidecarPreflight probes every required helper before any output
+// mutation or mint. Presence alone is insufficient: each binary must execute
+// a non-mutating version/capability invocation successfully.
 func DefaultSidecarPreflight(ctx context.Context) error {
-	missing := make([]string, 0)
+	return RunSidecarPreflight(ctx, defaultSidecarProbe())
+}
+
+// RunSidecarPreflight is the testable implementation of DefaultSidecarPreflight.
+func RunSidecarPreflight(ctx context.Context, probe SidecarProbe) error {
+	if probe.LookPath == nil {
+		probe.LookPath = exec.LookPath
+	}
+	if probe.Run == nil {
+		return errors.New("sidecar probe Run is required")
+	}
+
+	paths := make(map[string]string, len(requiredSidecars))
+	var missing []string
 	for _, name := range requiredSidecars {
-		if _, err := exec.LookPath(name); err != nil {
+		p, err := probe.LookPath(name)
+		if err != nil {
 			missing = append(missing, name)
+			continue
 		}
+		paths[name] = p
 	}
 	if len(missing) > 0 {
 		return fmt.Errorf("required sidecars not found on PATH: %s (install gpg≥2.4, gpgconf, minisign, and OpenSSH ssh-keygen)", strings.Join(missing, ", "))
 	}
 
-	out, err := exec.CommandContext(ctx, "gpg", "--version").CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("gpg --version failed: %w\n%s", err, strings.TrimSpace(string(out)))
-	}
-	ver, err := parseGPGVersion(string(out))
-	if err != nil {
+	if err := probeGPG(ctx, probe, paths["gpg"]); err != nil {
 		return err
+	}
+	if err := probeGPGConf(ctx, probe, paths["gpgconf"]); err != nil {
+		return err
+	}
+	if err := probeMinisign(ctx, probe, paths["minisign"]); err != nil {
+		return err
+	}
+	if err := probeSSHKeygen(ctx, probe, paths["ssh-keygen"]); err != nil {
+		return err
+	}
+	return nil
+}
+
+func probeGPG(ctx context.Context, probe SidecarProbe, path string) error {
+	out, err := probe.Run(ctx, path, "--version")
+	if err != nil {
+		return fmt.Errorf("gpg capability probe failed (%s --version): %w\n%s", path, err, strings.TrimSpace(out))
+	}
+	ver, err := parseGPGVersion(out)
+	if err != nil {
+		return fmt.Errorf("gpg version parse failed: %w", err)
 	}
 	if !versionAtLeast(ver, [3]int{2, 4, 0}) {
 		return fmt.Errorf("gpg version %s is below required minimum 2.4.0 (found via gpg --version)", formatVersion(ver))
 	}
 	return nil
+}
+
+func probeGPGConf(ctx context.Context, probe SidecarProbe, path string) error {
+	// Non-mutating; proves the binary executes and is the GnuPG gpgconf.
+	out, err := probe.Run(ctx, path, "--version")
+	if err != nil {
+		return fmt.Errorf("gpgconf capability probe failed (%s --version): %w\n%s", path, err, strings.TrimSpace(out))
+	}
+	lower := strings.ToLower(out)
+	if !strings.Contains(lower, "gpg") && !strings.Contains(lower, "gnupg") {
+		return fmt.Errorf("gpgconf capability probe returned unexpected output (want GnuPG gpgconf): %q", strings.TrimSpace(out))
+	}
+	return nil
+}
+
+func probeMinisign(ctx context.Context, probe SidecarProbe, path string) error {
+	// minisign -v prints version; treat successful execution as capability OK.
+	out, err := probe.Run(ctx, path, "-v")
+	if err != nil {
+		// Some builds print version on stderr and exit non-zero; accept if output names minisign.
+		if strings.Contains(strings.ToLower(out), "minisign") {
+			return nil
+		}
+		return fmt.Errorf("minisign capability probe failed (%s -v): %w\n%s", path, err, strings.TrimSpace(out))
+	}
+	if !strings.Contains(strings.ToLower(out), "minisign") && !containsDigit(out) {
+		return fmt.Errorf("minisign capability probe returned unexpected output: %q", strings.TrimSpace(out))
+	}
+	return nil
+}
+
+func probeSSHKeygen(ctx context.Context, probe SidecarProbe, path string) error {
+	// OpenSSH ssh-keygen with no args prints usage and exits 1 — that still
+	// proves the binary loads (wrong-arch exec fails differently).
+	out, err := probe.Run(ctx, path)
+	if err == nil {
+		return nil
+	}
+	lower := strings.ToLower(out)
+	if strings.Contains(lower, "usage") || strings.Contains(lower, "ssh-keygen") {
+		return nil
+	}
+	// Exec format / not found at runtime
+	if errors.Is(err, exec.ErrNotFound) || isExecFormatError(err, out) {
+		return fmt.Errorf("ssh-keygen capability probe failed (binary not executable on this platform): %w\n%s", err, strings.TrimSpace(out))
+	}
+	return fmt.Errorf("ssh-keygen capability probe failed: %w\n%s", err, strings.TrimSpace(out))
+}
+
+func isExecFormatError(err error, out string) bool {
+	msg := strings.ToLower(err.Error() + " " + out)
+	return strings.Contains(msg, "exec format") ||
+		strings.Contains(msg, "bad cpu type") ||
+		strings.Contains(msg, "cannot execute") ||
+		strings.Contains(msg, "not a valid")
+}
+
+func containsDigit(s string) bool {
+	for _, r := range s {
+		if r >= '0' && r <= '9' {
+			return true
+		}
+	}
+	return false
 }
 
 func parseGPGVersion(output string) ([3]int, error) {

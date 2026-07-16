@@ -85,8 +85,11 @@ Expire-Date: 0
 	signaturePath := filepath.Join(dir, "sample.txt.asc")
 	revocationPath := filepath.Join(dir, "revocation.asc")
 
-	// Export public material for both keys into the shared public artifact is
-	// intentional only when using distinct FPs; export each secret by FP alone.
+	// public.asc intentionally bundles BOTH primary public keys (protected +
+	// plain) for dogfood breadth. It is NOT the single-key protected secret
+	// counterpart — secrets are exported separately by exact fingerprint only.
+	// MANIFEST pairing (later) must label this as multi-key public, not as the
+	// protected private's exclusive public twin.
 	if err := runner.Run(ctx, "gpg", []string{"--batch", "--homedir", home, "--output", publicPath, "--armor", "--export", protectedFP, plainFP}, env, ""); err != nil {
 		return err
 	}

@@ -57,15 +57,77 @@ func Generate(ctx context.Context, opts Options) error {
 		opts.Preflight = DefaultSidecarPreflight
 	}
 
-	// All-sidecar presence/version before any mint or output root mutation.
+	// All-sidecar presence/capability before any mint or output root mutation.
 	if err := opts.Preflight(ctx); err != nil {
 		return err
 	}
 
-	root, err := guardrail.PrepareOutputRoot(opts.Out, opts.Force)
+	finalRoot, err := guardrail.ResolveOutputPath(opts.Out)
 	if err != nil {
 		return err
 	}
+	if err := checkFinalRootForGenerate(finalRoot, opts.Force); err != nil {
+		return err
+	}
+
+	// Mint entirely into a marker-owned staging directory. Publish/rename to
+	// the final root only after every step succeeds so failures never leave a
+	// half-generated corpus (and --force does not destroy a prior good corpus
+	// before the replacement is proven).
+	parent := filepath.Dir(finalRoot)
+	stagingName := fmt.Sprintf(".synthcorpus-staging-%d-%d", os.Getpid(), opts.Now().UnixNano())
+	stagingPath := filepath.Join(parent, stagingName)
+
+	staging, err := guardrail.PrepareOutputRoot(stagingPath, true)
+	if err != nil {
+		return fmt.Errorf("prepare staging root: %w", err)
+	}
+	published := false
+	defer func() {
+		if !published {
+			_ = os.RemoveAll(staging)
+		}
+	}()
+
+	if err := mintIntoRoot(ctx, staging, opts); err != nil {
+		return err
+	}
+	if err := publishStagedRoot(staging, finalRoot); err != nil {
+		return err
+	}
+	published = true
+	return nil
+}
+
+func checkFinalRootForGenerate(final string, force bool) error {
+	info, err := os.Lstat(final)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("stat final output root: %w", err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("output root exists and is not a directory: %s", final)
+	}
+	empty, err := dirIsEmpty(final)
+	if err != nil {
+		return err
+	}
+	if empty {
+		// Empty directory can be replaced by rename publish without --force.
+		return nil
+	}
+	if !force {
+		return fmt.Errorf("output root already exists; use --force only for a marker-owned synthcorpus directory")
+	}
+	if err := guardrail.CheckOwnedMarker(final); err != nil {
+		return err
+	}
+	return nil
+}
+
+func mintIntoRoot(ctx context.Context, root string, opts Options) error {
 	if err := guardrail.WriteMarker(root, opts.Tool); err != nil {
 		return err
 	}
@@ -99,6 +161,45 @@ func Generate(ctx context.Context, opts Options) error {
 		}
 	}
 	return writeJSON(filepath.Join(root, "MANIFEST.json"), manifest, guardrail.SecretPerm)
+}
+
+// publishStagedRoot moves a completed staging corpus onto finalRoot.
+// If finalRoot already exists (prior corpus / empty dir), it is moved aside
+// first and restored if the publish rename fails — so a valid prior corpus
+// survives a failed replacement.
+func publishStagedRoot(staging, final string) error {
+	var backup string
+	if _, err := os.Lstat(final); err == nil {
+		backup = final + ".synthcorpus-backup-" + fmt.Sprintf("%d", os.Getpid())
+		if err := os.Rename(final, backup); err != nil {
+			return fmt.Errorf("move prior output root aside for publish: %w", err)
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("stat final output root before publish: %w", err)
+	}
+
+	if err := os.Rename(staging, final); err != nil {
+		if backup != "" {
+			if restoreErr := os.Rename(backup, final); restoreErr != nil {
+				return fmt.Errorf("publish staged corpus: %w (also failed to restore prior corpus: %v)", err, restoreErr)
+			}
+		}
+		return fmt.Errorf("publish staged corpus: %w", err)
+	}
+	if backup != "" {
+		if err := os.RemoveAll(backup); err != nil {
+			return fmt.Errorf("corpus published at %s but failed to remove prior backup %s: %w", final, backup, err)
+		}
+	}
+	return nil
+}
+
+func dirIsEmpty(path string) (bool, error) {
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return false, err
+	}
+	return len(entries) == 0, nil
 }
 
 func createLayout(root string) error {
