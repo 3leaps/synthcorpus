@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/3leaps/synthcorpus/internal/guardrail"
 )
 
 type recordedCall struct {
@@ -24,6 +26,11 @@ type recordingRunner struct {
 	calls      []recordedCall
 	failOnName string
 	failOnArgs string // substring match in joined args; optional
+	// onBeforeName/onBefore run once before the named sidecar call — used to
+	// plant TOCTOU destinations at final during the mint window.
+	onBeforeName string
+	onBefore     func()
+	onBeforeDone bool
 }
 
 func (r *recordingRunner) Run(ctx context.Context, name string, args []string, env []string, stdin string) error {
@@ -32,6 +39,10 @@ func (r *recordingRunner) Run(ctx context.Context, name string, args []string, e
 }
 
 func (r *recordingRunner) Output(_ context.Context, name string, args []string, env []string, stdin string) (string, error) {
+	if r.onBefore != nil && !r.onBeforeDone && r.onBeforeName != "" && name == r.onBeforeName {
+		r.onBefore()
+		r.onBeforeDone = true
+	}
 	r.calls = append(r.calls, recordedCall{
 		name:  name,
 		args:  slices.Clone(args),
@@ -296,6 +307,107 @@ func TestGenerateForcePreservesPriorCorpusUntilSuccess(t *testing.T) {
 		t.Fatalf("prior corpus corrupted: %q", data)
 	}
 	assertNoStagingOrBackup(t, parent)
+}
+
+func TestPublishRefusesNonForceFinalPlantedDuringMint(t *testing.T) {
+	// Destination was absent at start; during mint an unowned final appears.
+	// Publish must fail without moving/removing the sentinel.
+	parent := t.TempDir()
+	final := filepath.Join(parent, "decernor")
+	// Resolve early so the planted path matches Generate's canonical final.
+	resolvedFinal, err := guardrail.ResolveOutputPath(final)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sentinel := filepath.Join(resolvedFinal, "unowned-sentinel.txt")
+
+	runner := &recordingRunner{
+		onBeforeName: "minisign",
+		onBefore: func() {
+			if err := os.MkdirAll(resolvedFinal, 0o700); err != nil {
+				t.Errorf("plant final: %v", err)
+				return
+			}
+			if err := os.WriteFile(sentinel, []byte("do-not-clobber\n"), 0o600); err != nil {
+				t.Errorf("plant sentinel: %v", err)
+			}
+		},
+	}
+	err = Generate(context.Background(), Options{
+		Tool:      "decernor",
+		Out:       final,
+		Force:     false,
+		Runner:    runner,
+		Preflight: func(context.Context) error { return nil },
+	})
+	if err == nil || !strings.Contains(err.Error(), "publish destination re-check") {
+		t.Fatalf("expected publish re-check failure, got %v", err)
+	}
+	data, err := os.ReadFile(sentinel)
+	if err != nil {
+		t.Fatalf("sentinel was moved/removed: %v", err)
+	}
+	if string(data) != "do-not-clobber\n" {
+		t.Fatalf("sentinel corrupted: %q", data)
+	}
+	// Staging cleaned; no backup of the unowned dir.
+	assertNoStagingOrBackup(t, filepath.Dir(resolvedFinal))
+}
+
+func TestPublishRefusesForceWhenMarkerLostDuringMint(t *testing.T) {
+	// Start with a marker-owned force-eligible corpus; during mint replace it
+	// with an unowned directory. Publish must not clobber the unowned path.
+	parent := t.TempDir()
+	final := filepath.Join(parent, "decernor")
+	if err := Generate(context.Background(), Options{
+		Tool:      "decernor",
+		Out:       final,
+		Runner:    &recordingRunner{},
+		Preflight: func(context.Context) error { return nil },
+	}); err != nil {
+		t.Fatalf("initial mint: %v", err)
+	}
+	realFinal, err := filepath.EvalSymlinks(final)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sentinel := filepath.Join(realFinal, "unowned-after-replace.txt")
+
+	runner := &recordingRunner{
+		onBeforeName: "minisign",
+		onBefore: func() {
+			// Replace marker-owned corpus with unowned content at the same path.
+			if err := os.RemoveAll(realFinal); err != nil {
+				t.Errorf("remove prior: %v", err)
+				return
+			}
+			if err := os.MkdirAll(realFinal, 0o700); err != nil {
+				t.Errorf("recreate unowned: %v", err)
+				return
+			}
+			if err := os.WriteFile(sentinel, []byte("unowned\n"), 0o600); err != nil {
+				t.Errorf("plant unowned sentinel: %v", err)
+			}
+		},
+	}
+	err = Generate(context.Background(), Options{
+		Tool:      "decernor",
+		Out:       final,
+		Force:     true,
+		Runner:    runner,
+		Preflight: func(context.Context) error { return nil },
+	})
+	if err == nil || !strings.Contains(err.Error(), "publish destination re-check") {
+		t.Fatalf("expected publish re-check failure after marker loss, got %v", err)
+	}
+	data, err := os.ReadFile(sentinel)
+	if err != nil {
+		t.Fatalf("unowned sentinel was moved/removed: %v", err)
+	}
+	if string(data) != "unowned\n" {
+		t.Fatalf("unowned sentinel corrupted: %q", data)
+	}
+	assertNoStagingOrBackup(t, filepath.Dir(realFinal))
 }
 
 func TestGenerateForceSuccessRemovesBackup(t *testing.T) {

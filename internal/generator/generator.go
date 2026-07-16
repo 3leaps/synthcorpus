@@ -101,13 +101,19 @@ func Generate(ctx context.Context, opts Options) (err error) {
 	if err = mintIntoRoot(ctx, staging, opts); err != nil {
 		return err
 	}
-	if err = publishStagedRoot(staging, finalRoot); err != nil {
+	// Re-authorize at publish time: mint is long enough that final may have
+	// been created or its marker removed (TOCTOU). Never clobber unowned data.
+	if err = publishStagedRoot(staging, finalRoot, opts.Force); err != nil {
 		return err
 	}
 	published = true
 	return nil
 }
 
+// checkFinalRootForGenerate authorizes the destination for eventual publish.
+// Same rules are re-applied immediately before the final→backup rename so a
+// long mint cannot clobber a directory that appeared (or lost its marker)
+// after the initial check.
 func checkFinalRootForGenerate(final string, force bool) error {
 	info, err := os.Lstat(final)
 	if errors.Is(err, os.ErrNotExist) {
@@ -115,6 +121,9 @@ func checkFinalRootForGenerate(final string, force bool) error {
 	}
 	if err != nil {
 		return fmt.Errorf("stat final output root: %w", err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("output root is a symlink: %s", final)
 	}
 	if !info.IsDir() {
 		return fmt.Errorf("output root exists and is not a directory: %s", final)
@@ -173,10 +182,17 @@ func mintIntoRoot(ctx context.Context, root string, opts Options) error {
 }
 
 // publishStagedRoot moves a completed staging corpus onto finalRoot.
-// If finalRoot already exists (prior corpus / empty dir), it is moved aside
-// first and restored if the publish rename fails — so a valid prior corpus
-// survives a failed replacement.
-func publishStagedRoot(staging, final string) error {
+// force carries the original Generate --force flag so destination
+// re-authorization matches pre-mint policy at the moment of clobber.
+//
+// If finalRoot already exists (empty or currently marker-owned under force),
+// it is moved aside first and restored if the publish rename fails.
+func publishStagedRoot(staging, final string, force bool) error {
+	// Fresh authorization immediately before any final→backup rename.
+	if err := checkFinalRootForGenerate(final, force); err != nil {
+		return fmt.Errorf("publish destination re-check: %w", err)
+	}
+
 	var backup string
 	if _, err := os.Lstat(final); err == nil {
 		backup = final + ".synthcorpus-backup-" + fmt.Sprintf("%d", os.Getpid())
