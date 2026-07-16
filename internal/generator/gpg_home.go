@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"runtime"
 )
 
 // macOS AF_UNIX sun_path is 104 bytes. Default agent socket lives at
@@ -19,12 +18,16 @@ func prepareGPGHome(ctx context.Context, root string, runner Runner) error {
 	env := sidecarEnv(root)
 
 	// Prefer a short socket directory so deep dogfood roots work on macOS
-	// (AF_UNIX sun_path ~104 bytes). Fail before any key mint when required.
+	// (AF_UNIX sun_path ~104 bytes). Many macOS hosts lack /run/user, so
+	// create-socketdir may fail even for short homes — that is OK when
+	// GNUPGHOME itself fits the socket budget (in-home S.gpg-agent).
+	// Fail closed only when the path is too long for in-home sockets.
 	if err := runner.Run(ctx, "gpgconf", []string{"--homedir", home, "--create-socketdir"}, env, ""); err != nil {
-		if len(home) > maxGNUPGHomeWithoutSocketdir || runtime.GOOS == "darwin" {
-			return fmt.Errorf("gpg agent socket setup failed for GNUPGHOME %q (len=%d; macOS/deep paths require gpgconf --create-socketdir): %w", home, len(home), err)
+		if len(home) > maxGNUPGHomeWithoutSocketdir {
+			return fmt.Errorf("gpg agent socket setup failed for GNUPGHOME %q (len=%d > %d; deep paths require working gpgconf --create-socketdir): %w", home, len(home), maxGNUPGHomeWithoutSocketdir, err)
 		}
-		// Short non-Darwin homes can fall back to in-home sockets.
+		// Short homes: fall back to in-home agent sockets (common on macOS
+		// without /run/user).
 	}
 	return nil
 }
