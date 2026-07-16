@@ -6,9 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/3leaps/synthcorpus/internal/guardrail"
@@ -26,13 +24,10 @@ type Options struct {
 	Force  bool
 	Runner Runner
 	Now    func() time.Time
+	// Preflight runs before any output mutation. nil uses DefaultSidecarPreflight.
+	// Unit tests may set a no-op when sidecars are mocked via Runner.
+	Preflight func(context.Context) error
 }
-
-type Runner interface {
-	Run(ctx context.Context, name string, args []string, env []string, stdin string) error
-}
-
-type OSRunner struct{}
 
 type Manifest struct {
 	Kind       string     `json:"kind"`
@@ -48,7 +43,7 @@ type Artifact struct {
 	Path  string `json:"path"`
 }
 
-func Generate(ctx context.Context, opts Options) error {
+func Generate(ctx context.Context, opts Options) (err error) {
 	if opts.Tool == "" {
 		return errors.New("tool is required")
 	}
@@ -58,11 +53,99 @@ func Generate(ctx context.Context, opts Options) error {
 	if opts.Now == nil {
 		opts.Now = time.Now
 	}
+	if opts.Preflight == nil {
+		opts.Preflight = DefaultSidecarPreflight
+	}
 
-	root, err := guardrail.PrepareOutputRoot(opts.Out, opts.Force)
+	// All-sidecar presence/capability before any mint or output root mutation.
+	if err := opts.Preflight(ctx); err != nil {
+		return err
+	}
+
+	finalRoot, err := guardrail.ResolveOutputPath(opts.Out)
 	if err != nil {
 		return err
 	}
+	if err := checkFinalRootForGenerate(finalRoot, opts.Force); err != nil {
+		return err
+	}
+
+	// Mint entirely into a marker-owned staging directory. Publish/rename to
+	// the final root only after every step succeeds so failures never leave a
+	// half-generated corpus (and --force does not destroy a prior good corpus
+	// before the replacement is proven).
+	parent := filepath.Dir(finalRoot)
+	stagingName := fmt.Sprintf(".synthcorpus-staging-%d-%d", os.Getpid(), opts.Now().UnixNano())
+	stagingPath := filepath.Join(parent, stagingName)
+
+	staging, err := guardrail.PrepareOutputRoot(stagingPath, true)
+	if err != nil {
+		return fmt.Errorf("prepare staging root: %w", err)
+	}
+	published := false
+	defer func() {
+		if published {
+			return
+		}
+		// Cleanup failures must surface — silent discard can leave real
+		// generated material under .synthcorpus-staging-* after Generate errs.
+		if cleanErr := removeAll(staging); cleanErr != nil {
+			if err != nil {
+				err = fmt.Errorf("%w (also failed to remove staging %s: %v)", err, staging, cleanErr)
+			} else {
+				err = fmt.Errorf("failed to remove staging %s: %w", staging, cleanErr)
+			}
+		}
+	}()
+
+	if err = mintIntoRoot(ctx, staging, opts); err != nil {
+		return err
+	}
+	// Re-authorize at publish time: mint is long enough that final may have
+	// been created or its marker removed (TOCTOU). Never clobber unowned data.
+	if err = publishStagedRoot(staging, finalRoot, opts.Force); err != nil {
+		return err
+	}
+	published = true
+	return nil
+}
+
+// checkFinalRootForGenerate authorizes the destination for eventual publish.
+// Same rules are re-applied immediately before the final→backup rename so a
+// long mint cannot clobber a directory that appeared (or lost its marker)
+// after the initial check.
+func checkFinalRootForGenerate(final string, force bool) error {
+	info, err := os.Lstat(final)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("stat final output root: %w", err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("output root is a symlink: %s", final)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("output root exists and is not a directory: %s", final)
+	}
+	empty, err := dirIsEmpty(final)
+	if err != nil {
+		return err
+	}
+	if empty {
+		// Empty directory can be replaced by rename publish without --force.
+		return nil
+	}
+	if !force {
+		return fmt.Errorf("output root already exists; use --force only for a marker-owned synthcorpus directory")
+	}
+	if err := guardrail.CheckOwnedMarker(final); err != nil {
+		return err
+	}
+	return nil
+}
+
+func mintIntoRoot(ctx context.Context, root string, opts Options) error {
 	if err := guardrail.WriteMarker(root, opts.Tool); err != nil {
 		return err
 	}
@@ -98,30 +181,66 @@ func Generate(ctx context.Context, opts Options) error {
 	return writeJSON(filepath.Join(root, "MANIFEST.json"), manifest, guardrail.SecretPerm)
 }
 
-func (OSRunner) Run(ctx context.Context, name string, args []string, env []string, stdin string) error {
-	resolved, err := exec.LookPath(name)
-	if err != nil {
-		return fmt.Errorf("find sidecar %q: %w", name, err)
+// publishStagedRoot moves a completed staging corpus onto finalRoot.
+// force carries the original Generate --force flag so destination
+// re-authorization matches pre-mint policy at the moment of clobber.
+//
+// If finalRoot already exists (empty or currently marker-owned under force),
+// it is moved aside first and restored if the publish rename fails.
+func publishStagedRoot(staging, final string, force bool) error {
+	// Fresh authorization immediately before any final→backup rename.
+	if err := checkFinalRootForGenerate(final, force); err != nil {
+		return fmt.Errorf("publish destination re-check: %w", err)
 	}
-	cmd := exec.CommandContext(ctx, resolved, args...)
-	cmd.Env = env
-	if stdin != "" {
-		cmd.Stdin = strings.NewReader(stdin)
+
+	var backup string
+	if _, err := os.Lstat(final); err == nil {
+		backup = final + ".synthcorpus-backup-" + fmt.Sprintf("%d", os.Getpid())
+		if err := rename(final, backup); err != nil {
+			return fmt.Errorf("move prior output root aside for publish: %w", err)
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("stat final output root before publish: %w", err)
 	}
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("run %s %q: %w\n%s", name, args, err, strings.TrimSpace(string(out)))
+
+	if err := rename(staging, final); err != nil {
+		if backup != "" {
+			if restoreErr := rename(backup, final); restoreErr != nil {
+				return fmt.Errorf("publish staged corpus: %w (also failed to restore prior corpus: %v)", err, restoreErr)
+			}
+		}
+		return fmt.Errorf("publish staged corpus: %w", err)
+	}
+	if backup != "" {
+		if err := removeAll(backup); err != nil {
+			return fmt.Errorf("corpus published at %s but failed to remove prior backup %s: %w", final, backup, err)
+		}
 	}
 	return nil
+}
+
+// Filesystem hooks — overridable in tests for cleanup/publish failure injection.
+var (
+	removeAll = os.RemoveAll
+	rename    = os.Rename
+)
+
+func dirIsEmpty(path string) (bool, error) {
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return false, err
+	}
+	return len(entries) == 0, nil
 }
 
 func createLayout(root string) error {
 	dirs := []string{".gnupg", "gpg", "minisign", "ssh", "malformed"}
 	for _, dir := range dirs {
-		if err := os.MkdirAll(filepath.Join(root, dir), guardrail.DirPerm); err != nil {
+		path := filepath.Join(root, dir)
+		if err := os.MkdirAll(path, guardrail.DirPerm); err != nil {
 			return err
 		}
-		if err := os.Chmod(filepath.Join(root, dir), guardrail.DirPerm); err != nil {
+		if err := chmodFile(path, guardrail.DirPerm); err != nil {
 			return err
 		}
 	}
@@ -159,7 +278,10 @@ func writeJSON(path string, v any, perm os.FileMode) error {
 		return err
 	}
 	data = append(data, '\n')
-	return os.WriteFile(path, data, perm)
+	if err := os.WriteFile(path, data, perm); err != nil {
+		return err
+	}
+	return chmodFile(path, perm)
 }
 
 func appendArtifact(m *Manifest, kind, class, path string) {
@@ -197,7 +319,7 @@ func sidecarEnv(root string, extra ...string) []string {
 		env = append(env, item)
 	}
 	for _, item := range os.Environ() {
-		key, value, ok := strings.Cut(item, "=")
+		key, value, ok := cutEnv(item)
 		if !ok || !keep[key] {
 			continue
 		}
@@ -209,4 +331,13 @@ func sidecarEnv(root string, extra ...string) []string {
 	set("GPG_AGENT_INFO", "")
 	env = append(env, extra...)
 	return env
+}
+
+func cutEnv(item string) (key, value string, ok bool) {
+	for i := 0; i < len(item); i++ {
+		if item[i] == '=' {
+			return item[:i], item[i+1:], true
+		}
+	}
+	return "", "", false
 }

@@ -27,7 +27,10 @@ type Marker struct {
 	Tool string `json:"tool"`
 }
 
-func PrepareOutputRoot(out string, force bool) (string, error) {
+// ResolveOutputPath returns the canonical absolute path for out after
+// symlink canonicalize and git/worktree refusal. It does not create or
+// delete anything — used to plan a final publish target before staging.
+func ResolveOutputPath(out string) (string, error) {
 	if strings.TrimSpace(out) == "" {
 		return "", errors.New("output path is required")
 	}
@@ -80,6 +83,28 @@ func PrepareOutputRoot(out string, force bool) (string, error) {
 		if !info.IsDir() {
 			return "", fmt.Errorf("output root exists and is not a directory: %s", abs)
 		}
+	}
+	return abs, nil
+}
+
+// CheckOwnedMarker verifies a root carries a bounded regular-file ownership
+// marker. Used for --force publish without deleting the prior corpus yet.
+func CheckOwnedMarker(root string) error {
+	return requireOwnedMarker(root)
+}
+
+func PrepareOutputRoot(out string, force bool) (string, error) {
+	abs, err := ResolveOutputPath(out)
+	if err != nil {
+		return "", err
+	}
+
+	_, exists, err := nearestExistingAncestor(abs)
+	if err != nil {
+		return "", err
+	}
+	// Re-stat: exists means the full abs path exists (suffix empty).
+	if exists {
 		if force {
 			if err := requireOwnedMarker(abs); err != nil {
 				return "", err
