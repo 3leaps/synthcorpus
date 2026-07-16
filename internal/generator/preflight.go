@@ -122,20 +122,36 @@ func probeMinisign(ctx context.Context, probe SidecarProbe, path string) error {
 	return nil
 }
 
+// invalidSSHKeyType is an intentionally invalid -t value. OpenSSH responds
+// with "unknown key type …" without entering interactive key generation.
+// (Bare `ssh-keygen` on macOS starts interactive generation — never probe that way.)
+const invalidSSHKeyType = "__synthcorpus_invalid_key_type__"
+
 func probeSSHKeygen(ctx context.Context, probe SidecarProbe, path string) error {
-	// OpenSSH ssh-keygen with no args prints usage and exits 1 — that still
-	// proves the binary loads (wrong-arch exec fails differently).
-	out, err := probe.Run(ctx, path)
-	if err == nil {
-		return nil
-	}
+	out, err := probe.Run(ctx, path, "-t", invalidSSHKeyType)
 	lower := strings.ToLower(out)
-	if strings.Contains(lower, "usage") || strings.Contains(lower, "ssh-keygen") {
-		return nil
+
+	// Hard reject any interactive generation path (macOS no-args behavior).
+	if strings.Contains(lower, "enter file") ||
+		strings.Contains(lower, "generating public/private") ||
+		strings.Contains(lower, "enter passphrase") {
+		return fmt.Errorf("ssh-keygen capability probe became interactive (refusing); output=%q", strings.TrimSpace(out))
 	}
-	// Exec format / not found at runtime
+
 	if errors.Is(err, exec.ErrNotFound) || isExecFormatError(err, out) {
 		return fmt.Errorf("ssh-keygen capability probe failed (binary not executable on this platform): %w\n%s", err, strings.TrimSpace(out))
+	}
+
+	// Accept known non-interactive diagnostics from OpenSSH (exit code varies by platform).
+	if strings.Contains(lower, "unknown key type") ||
+		strings.Contains(lower, "unsupported") ||
+		strings.Contains(lower, "usage:") ||
+		strings.Contains(lower, "invalid") {
+		return nil
+	}
+	if err == nil {
+		// Some builds exit 0 after printing unknown key type.
+		return nil
 	}
 	return fmt.Errorf("ssh-keygen capability probe failed: %w\n%s", err, strings.TrimSpace(out))
 }

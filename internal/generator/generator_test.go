@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -197,6 +198,19 @@ func TestGenerateUsesGuardedLayoutAndExplicitSidecarCalls(t *testing.T) {
 		t.Fatalf("fingerprint export/sign incomplete; protected=%v plain=%v sign=%v publicBundle=%v", sawExportProtected, sawExportPlain, sawSign, sawBundledPublic)
 	}
 
+	// MANIFEST class for public.asc must be public-bundle (multi-key), not bare public.
+	manifestBody, err := os.ReadFile(filepath.Join(realRoot, "MANIFEST.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(manifestBody), `"class": "public-bundle"`) {
+		t.Fatalf("MANIFEST missing public-bundle class: %s", manifestBody)
+	}
+	if strings.Contains(string(manifestBody), `"path": "gpg/public.asc"`) &&
+		!strings.Contains(string(manifestBody), `"class": "public-bundle"`) {
+		t.Fatal("public.asc not labeled public-bundle")
+	}
+
 	for _, path := range []string{
 		"gpg/private-protected.asc",
 		"minisign/minisign-protected.key",
@@ -240,15 +254,7 @@ func TestGenerateCleansStagingOnInjectedFailures(t *testing.T) {
 			if _, err := os.Stat(final); !os.IsNotExist(err) {
 				t.Fatalf("final corpus must not exist after failed mint: %v", err)
 			}
-			entries, err := os.ReadDir(parent)
-			if err != nil {
-				t.Fatal(err)
-			}
-			for _, e := range entries {
-				if strings.HasPrefix(e.Name(), ".synthcorpus-staging-") || strings.HasPrefix(e.Name(), ".synthcorpus-backup-") {
-					t.Fatalf("leftover %s after failed mint", e.Name())
-				}
-			}
+			assertNoStagingOrBackup(t, parent)
 		})
 	}
 }
@@ -288,6 +294,184 @@ func TestGenerateForcePreservesPriorCorpusUntilSuccess(t *testing.T) {
 	}
 	if string(data) != "prior\n" {
 		t.Fatalf("prior corpus corrupted: %q", data)
+	}
+	assertNoStagingOrBackup(t, parent)
+}
+
+func TestGenerateForceSuccessRemovesBackup(t *testing.T) {
+	parent := t.TempDir()
+	final := filepath.Join(parent, "decernor")
+	if err := Generate(context.Background(), Options{
+		Tool:      "decernor",
+		Out:       final,
+		Runner:    &recordingRunner{},
+		Preflight: func(context.Context) error { return nil },
+	}); err != nil {
+		t.Fatalf("initial: %v", err)
+	}
+	if err := Generate(context.Background(), Options{
+		Tool:      "decernor",
+		Out:       final,
+		Force:     true,
+		Runner:    &recordingRunner{},
+		Preflight: func(context.Context) error { return nil },
+	}); err != nil {
+		t.Fatalf("force remint: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(final, "MANIFEST.json")); err != nil {
+		t.Fatalf("final corpus missing after force success: %v", err)
+	}
+	assertNoStagingOrBackup(t, parent)
+}
+
+func TestGeneratePublishRenameFailureRestoresPrior(t *testing.T) {
+	parent := t.TempDir()
+	final := filepath.Join(parent, "decernor")
+	if err := Generate(context.Background(), Options{
+		Tool:      "decernor",
+		Out:       final,
+		Runner:    &recordingRunner{},
+		Preflight: func(context.Context) error { return nil },
+	}); err != nil {
+		t.Fatalf("initial: %v", err)
+	}
+	realFinal, err := filepath.EvalSymlinks(final)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sentinel := filepath.Join(realFinal, "prior-sentinel.txt")
+	if err := os.WriteFile(sentinel, []byte("prior\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	origRename := rename
+	t.Cleanup(func() { rename = origRename })
+	// Fail only the staging→final publish rename (after prior was moved to backup).
+	// Compare against realpath: ResolveOutputPath canonicalizes on macOS.
+	rename = func(oldpath, newpath string) error {
+		if strings.Contains(oldpath, ".synthcorpus-staging-") && newpath == realFinal {
+			return errors.New("injected publish rename failure")
+		}
+		return origRename(oldpath, newpath)
+	}
+
+	err = Generate(context.Background(), Options{
+		Tool:      "decernor",
+		Out:       final,
+		Force:     true,
+		Runner:    &recordingRunner{},
+		Preflight: func(context.Context) error { return nil },
+	})
+	if err == nil || !strings.Contains(err.Error(), "publish staged corpus") {
+		t.Fatalf("expected publish failure, got %v", err)
+	}
+	data, err := os.ReadFile(sentinel)
+	if err != nil {
+		t.Fatalf("prior corpus not restored: %v", err)
+	}
+	if string(data) != "prior\n" {
+		t.Fatalf("restored corpus wrong content: %q", data)
+	}
+	// Parent of realFinal for leftover check (may be /private/tmp/...).
+	assertNoStagingOrBackup(t, filepath.Dir(realFinal))
+}
+
+func TestGenerateSurfacesStagingCleanupFailure(t *testing.T) {
+	parent := t.TempDir()
+	final := filepath.Join(parent, "decernor")
+	origRemove := removeAll
+	t.Cleanup(func() { removeAll = origRemove })
+
+	var residual string
+	removeAll = func(path string) error {
+		if strings.Contains(filepath.Base(path), ".synthcorpus-staging-") {
+			residual = path
+			return errors.New("injected staging cleanup failure")
+		}
+		return origRemove(path)
+	}
+
+	err := Generate(context.Background(), Options{
+		Tool:      "decernor",
+		Out:       final,
+		Runner:    &recordingRunner{failOnName: "minisign"},
+		Preflight: func(context.Context) error { return nil },
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "injected failure for minisign") {
+		t.Fatalf("original mint error lost: %v", err)
+	}
+	if !strings.Contains(err.Error(), "failed to remove staging") && !strings.Contains(err.Error(), "also failed to remove staging") {
+		t.Fatalf("cleanup failure not surfaced: %v", err)
+	}
+	if residual == "" {
+		t.Fatal("expected cleanup to target a staging path")
+	}
+	// Residual intentionally remains because cleanup was injected to fail.
+	if _, err := os.Stat(residual); err != nil {
+		t.Fatalf("expected residual staging path for operator visibility: %v", err)
+	}
+	// Final must still be absent (never published).
+	if _, err := os.Stat(final); !os.IsNotExist(err) {
+		t.Fatalf("final must not exist: %v", err)
+	}
+	// Clean residual so TempDir teardown is quiet.
+	_ = origRemove(residual)
+}
+
+func TestGenerateDeepPathGPGConfFailureLeavesNoCorpus(t *testing.T) {
+	// Build a path deep enough that GNUPGHOME would exceed the macOS socket
+	// budget without socketdir — gpgconf failure must happen before mint and
+	// leave neither final nor residual staging.
+	parent := t.TempDir()
+	deep := parent
+	for i := 0; i < 8; i++ {
+		deep = filepath.Join(deep, strings.Repeat("d", 20))
+	}
+	final := filepath.Join(deep, "decernor")
+	err := Generate(context.Background(), Options{
+		Tool:      "decernor",
+		Out:       final,
+		Runner:    &recordingRunner{failOnName: "gpgconf"},
+		Preflight: func(context.Context) error { return nil },
+	})
+	if err == nil {
+		t.Fatal("expected gpgconf failure on deep path")
+	}
+	if !strings.Contains(err.Error(), "gpgconf") && !strings.Contains(err.Error(), "socket") && !strings.Contains(err.Error(), "injected failure") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, err := os.Stat(final); !os.IsNotExist(err) {
+		t.Fatalf("final must be absent: %v", err)
+	}
+	// Walk parent for any staging residue under the deep tree.
+	_ = filepath.WalkDir(parent, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		name := d.Name()
+		if strings.HasPrefix(name, ".synthcorpus-staging-") || strings.Contains(name, ".synthcorpus-backup-") {
+			t.Errorf("leftover after deep-path failure: %s", path)
+		}
+		return nil
+	})
+}
+
+func assertNoStagingOrBackup(t *testing.T, parent string) {
+	t.Helper()
+	entries, err := os.ReadDir(parent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		name := e.Name()
+		// Staging: .synthcorpus-staging-*
+		// Backup of final "decernor": decernor.synthcorpus-backup-<pid>
+		if strings.HasPrefix(name, ".synthcorpus-staging-") || strings.Contains(name, ".synthcorpus-backup-") {
+			t.Fatalf("leftover %s under %s", name, parent)
+		}
 	}
 }
 
@@ -406,7 +590,8 @@ func TestRunSidecarPreflightProbesAllHelpers(t *testing.T) {
 	writeFake(t, bin, "gpg", "#!/bin/sh\necho 'gpg (GnuPG) 2.4.5'\n")
 	writeFake(t, bin, "gpgconf", "#!/bin/sh\necho 'gpgconf (GnuPG) 2.4.5'\n")
 	writeFake(t, bin, "minisign", "#!/bin/sh\necho 'minisign 0.11'\n")
-	writeFake(t, bin, "ssh-keygen", "#!/bin/sh\necho 'usage: ssh-keygen' >&2\nexit 1\n")
+	// Non-interactive OpenSSH-shaped response to -t <invalid>.
+	writeFake(t, bin, "ssh-keygen", "#!/bin/sh\necho \"unknown key type $2\"\nexit 1\n")
 
 	probe := SidecarProbe{
 		LookPath: func(file string) (string, error) {
@@ -417,13 +602,47 @@ func TestRunSidecarPreflightProbesAllHelpers(t *testing.T) {
 			return p, nil
 		},
 		Run: func(ctx context.Context, path string, args ...string) (string, error) {
-			// Execute the fake scripts.
 			return defaultSidecarProbe().Run(ctx, path, args...)
 		},
 	}
 	if err := RunSidecarPreflight(context.Background(), probe); err != nil {
 		t.Fatalf("expected preflight success with capable fakes: %v", err)
 	}
+}
+
+func TestProbeSSHKeygenRejectsInteractiveAndAcceptsInvalidType(t *testing.T) {
+	t.Run("rejects-interactive", func(t *testing.T) {
+		err := probeSSHKeygen(context.Background(), SidecarProbe{
+			Run: func(context.Context, string, ...string) (string, error) {
+				return "Generating public/private ed25519 key pair.\nEnter file in which to save the key (/tmp/id):", errors.New("exit 1")
+			},
+		}, "/usr/bin/ssh-keygen")
+		if err == nil || !strings.Contains(err.Error(), "interactive") {
+			t.Fatalf("expected interactive rejection, got %v", err)
+		}
+	})
+	t.Run("accepts-unknown-key-type", func(t *testing.T) {
+		err := probeSSHKeygen(context.Background(), SidecarProbe{
+			Run: func(_ context.Context, _ string, args ...string) (string, error) {
+				if len(args) < 2 || args[0] != "-t" {
+					t.Fatalf("expected -t probe, got %#v", args)
+				}
+				return "unknown key type " + args[1], errors.New("exit 1")
+			},
+		}, "/usr/bin/ssh-keygen")
+		if err != nil {
+			t.Fatalf("expected accept: %v", err)
+		}
+	})
+	t.Run("host-binary-noninteractive", func(t *testing.T) {
+		path, err := exec.LookPath("ssh-keygen")
+		if err != nil {
+			t.Skip("ssh-keygen not on PATH")
+		}
+		if err := probeSSHKeygen(context.Background(), defaultSidecarProbe(), path); err != nil {
+			t.Fatalf("host ssh-keygen preflight failed: %v", err)
+		}
+	})
 }
 
 func TestRunSidecarPreflightRejectsMissingBrokenAndOldGPG(t *testing.T) {
@@ -449,7 +668,7 @@ func TestRunSidecarPreflightRejectsMissingBrokenAndOldGPG(t *testing.T) {
 				case "minisign":
 					return "minisign 0.11\n", nil
 				case "ssh-keygen":
-					return "usage: ssh-keygen\n", fmt.Errorf("exit 1")
+					return "unknown key type x\n", fmt.Errorf("exit 1")
 				default:
 					return "", fmt.Errorf("unexpected %s", path)
 				}
@@ -472,7 +691,7 @@ func TestRunSidecarPreflightRejectsMissingBrokenAndOldGPG(t *testing.T) {
 				case "minisign":
 					return "exec format error", errors.New("exec format error")
 				default:
-					return "usage: ssh-keygen\n", fmt.Errorf("exit 1")
+					return "unknown key type x", fmt.Errorf("exit 1")
 				}
 			},
 		})

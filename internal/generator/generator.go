@@ -43,7 +43,7 @@ type Artifact struct {
 	Path  string `json:"path"`
 }
 
-func Generate(ctx context.Context, opts Options) error {
+func Generate(ctx context.Context, opts Options) (err error) {
 	if opts.Tool == "" {
 		return errors.New("tool is required")
 	}
@@ -84,15 +84,24 @@ func Generate(ctx context.Context, opts Options) error {
 	}
 	published := false
 	defer func() {
-		if !published {
-			_ = os.RemoveAll(staging)
+		if published {
+			return
+		}
+		// Cleanup failures must surface — silent discard can leave real
+		// generated material under .synthcorpus-staging-* after Generate errs.
+		if cleanErr := removeAll(staging); cleanErr != nil {
+			if err != nil {
+				err = fmt.Errorf("%w (also failed to remove staging %s: %v)", err, staging, cleanErr)
+			} else {
+				err = fmt.Errorf("failed to remove staging %s: %w", staging, cleanErr)
+			}
 		}
 	}()
 
-	if err := mintIntoRoot(ctx, staging, opts); err != nil {
+	if err = mintIntoRoot(ctx, staging, opts); err != nil {
 		return err
 	}
-	if err := publishStagedRoot(staging, finalRoot); err != nil {
+	if err = publishStagedRoot(staging, finalRoot); err != nil {
 		return err
 	}
 	published = true
@@ -171,28 +180,34 @@ func publishStagedRoot(staging, final string) error {
 	var backup string
 	if _, err := os.Lstat(final); err == nil {
 		backup = final + ".synthcorpus-backup-" + fmt.Sprintf("%d", os.Getpid())
-		if err := os.Rename(final, backup); err != nil {
+		if err := rename(final, backup); err != nil {
 			return fmt.Errorf("move prior output root aside for publish: %w", err)
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("stat final output root before publish: %w", err)
 	}
 
-	if err := os.Rename(staging, final); err != nil {
+	if err := rename(staging, final); err != nil {
 		if backup != "" {
-			if restoreErr := os.Rename(backup, final); restoreErr != nil {
+			if restoreErr := rename(backup, final); restoreErr != nil {
 				return fmt.Errorf("publish staged corpus: %w (also failed to restore prior corpus: %v)", err, restoreErr)
 			}
 		}
 		return fmt.Errorf("publish staged corpus: %w", err)
 	}
 	if backup != "" {
-		if err := os.RemoveAll(backup); err != nil {
+		if err := removeAll(backup); err != nil {
 			return fmt.Errorf("corpus published at %s but failed to remove prior backup %s: %w", final, backup, err)
 		}
 	}
 	return nil
 }
+
+// Filesystem hooks — overridable in tests for cleanup/publish failure injection.
+var (
+	removeAll = os.RemoveAll
+	rename    = os.Rename
+)
 
 func dirIsEmpty(path string) (bool, error) {
 	entries, err := os.ReadDir(path)

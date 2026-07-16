@@ -122,7 +122,9 @@ Expire-Date: 0
 		return err
 	}
 
-	appendArtifact(manifest, "gpg", "public", rel(root, publicPath))
+	// Class public-bundle: machine-readable multi-key public export (not a
+	// 1:1 twin of private-protected). Single-key publics would use "public".
+	appendArtifact(manifest, "gpg", "public-bundle", rel(root, publicPath))
 	appendArtifact(manifest, "gpg", "private-protected", rel(root, protectedSecretPath))
 	appendArtifact(manifest, "gpg", "private-plain", rel(root, plainSecretPath))
 	appendArtifact(manifest, "gpg", "signature", rel(root, signaturePath))
