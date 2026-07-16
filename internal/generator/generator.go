@@ -6,9 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/3leaps/synthcorpus/internal/guardrail"
@@ -26,13 +24,10 @@ type Options struct {
 	Force  bool
 	Runner Runner
 	Now    func() time.Time
+	// Preflight runs before any output mutation. nil uses DefaultSidecarPreflight.
+	// Unit tests may set a no-op when sidecars are mocked via Runner.
+	Preflight func(context.Context) error
 }
-
-type Runner interface {
-	Run(ctx context.Context, name string, args []string, env []string, stdin string) error
-}
-
-type OSRunner struct{}
 
 type Manifest struct {
 	Kind       string     `json:"kind"`
@@ -57,6 +52,14 @@ func Generate(ctx context.Context, opts Options) error {
 	}
 	if opts.Now == nil {
 		opts.Now = time.Now
+	}
+	if opts.Preflight == nil {
+		opts.Preflight = DefaultSidecarPreflight
+	}
+
+	// All-sidecar presence/version before any mint or output root mutation.
+	if err := opts.Preflight(ctx); err != nil {
+		return err
 	}
 
 	root, err := guardrail.PrepareOutputRoot(opts.Out, opts.Force)
@@ -98,30 +101,14 @@ func Generate(ctx context.Context, opts Options) error {
 	return writeJSON(filepath.Join(root, "MANIFEST.json"), manifest, guardrail.SecretPerm)
 }
 
-func (OSRunner) Run(ctx context.Context, name string, args []string, env []string, stdin string) error {
-	resolved, err := exec.LookPath(name)
-	if err != nil {
-		return fmt.Errorf("find sidecar %q: %w", name, err)
-	}
-	cmd := exec.CommandContext(ctx, resolved, args...)
-	cmd.Env = env
-	if stdin != "" {
-		cmd.Stdin = strings.NewReader(stdin)
-	}
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("run %s %q: %w\n%s", name, args, err, strings.TrimSpace(string(out)))
-	}
-	return nil
-}
-
 func createLayout(root string) error {
 	dirs := []string{".gnupg", "gpg", "minisign", "ssh", "malformed"}
 	for _, dir := range dirs {
-		if err := os.MkdirAll(filepath.Join(root, dir), guardrail.DirPerm); err != nil {
+		path := filepath.Join(root, dir)
+		if err := os.MkdirAll(path, guardrail.DirPerm); err != nil {
 			return err
 		}
-		if err := os.Chmod(filepath.Join(root, dir), guardrail.DirPerm); err != nil {
+		if err := chmodFile(path, guardrail.DirPerm); err != nil {
 			return err
 		}
 	}
@@ -159,7 +146,10 @@ func writeJSON(path string, v any, perm os.FileMode) error {
 		return err
 	}
 	data = append(data, '\n')
-	return os.WriteFile(path, data, perm)
+	if err := os.WriteFile(path, data, perm); err != nil {
+		return err
+	}
+	return chmodFile(path, perm)
 }
 
 func appendArtifact(m *Manifest, kind, class, path string) {
@@ -197,7 +187,7 @@ func sidecarEnv(root string, extra ...string) []string {
 		env = append(env, item)
 	}
 	for _, item := range os.Environ() {
-		key, value, ok := strings.Cut(item, "=")
+		key, value, ok := cutEnv(item)
 		if !ok || !keep[key] {
 			continue
 		}
@@ -209,4 +199,13 @@ func sidecarEnv(root string, extra ...string) []string {
 	set("GPG_AGENT_INFO", "")
 	env = append(env, extra...)
 	return env
+}
+
+func cutEnv(item string) (key, value string, ok bool) {
+	for i := 0; i < len(item); i++ {
+		if item[i] == '=' {
+			return item[:i], item[i+1:], true
+		}
+	}
+	return "", "", false
 }

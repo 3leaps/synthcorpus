@@ -2,7 +2,6 @@ package generator
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 
 	"github.com/3leaps/synthcorpus/internal/guardrail"
@@ -21,10 +20,18 @@ func generateSSH(ctx context.Context, root string, runner Runner, manifest *Mani
 		return err
 	}
 
-	_ = os.Chmod(protectedKey, guardrail.SecretPerm)
-	_ = os.Chmod(plainKey, guardrail.SecretPerm)
-	_ = os.Chmod(protectedKey+".pub", guardrail.PublicPerm)
-	_ = os.Chmod(plainKey+".pub", guardrail.PublicPerm)
+	if err := chmodFile(protectedKey, guardrail.SecretPerm); err != nil {
+		return err
+	}
+	if err := chmodFile(plainKey, guardrail.SecretPerm); err != nil {
+		return err
+	}
+	if err := chmodFile(protectedKey+".pub", guardrail.PublicPerm); err != nil {
+		return err
+	}
+	if err := chmodFile(plainKey+".pub", guardrail.PublicPerm); err != nil {
+		return err
+	}
 
 	appendArtifact(manifest, "ssh", "private-protected", rel(root, protectedKey))
 	appendArtifact(manifest, "ssh", "public", rel(root, protectedKey+".pub"))

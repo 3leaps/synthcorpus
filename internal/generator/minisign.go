@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/3leaps/synthcorpus/internal/guardrail"
 )
 
 func generateMinisign(ctx context.Context, root string, runner Runner, manifest *Manifest) error {
@@ -44,11 +46,21 @@ func generateMinisign(ctx context.Context, root string, runner Runner, manifest 
 	appendArtifact(manifest, "minisign", "private-plain", rel(root, plainSecret))
 	appendArtifact(manifest, "minisign", "signature", rel(root, sig))
 
-	_ = os.Chmod(protectedPub, 0o644)
-	_ = os.Chmod(plainPub, 0o644)
-	_ = os.Chmod(sig, 0o644)
-	_ = os.Chmod(protectedSecret, 0o600)
-	_ = os.Chmod(plainSecret, 0o600)
+	if err := chmodFile(protectedPub, guardrail.PublicPerm); err != nil {
+		return err
+	}
+	if err := chmodFile(plainPub, guardrail.PublicPerm); err != nil {
+		return err
+	}
+	if err := chmodFile(sig, guardrail.PublicPerm); err != nil {
+		return err
+	}
+	if err := chmodFile(protectedSecret, guardrail.SecretPerm); err != nil {
+		return err
+	}
+	if err := chmodFile(plainSecret, guardrail.SecretPerm); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -63,5 +75,6 @@ func stampMinisignComment(path, label string) error {
 		return fmt.Errorf("minisign artifact has no comment line: %s", path)
 	}
 	comment := "untrusted comment: synthcorpus generated-real TEST KEY - DO NOT USE (" + label + ")"
-	return os.WriteFile(path, []byte(comment+"\n"+rest), 0o600)
+	// Stamped secrets stay 0600; public files get corrected by generateMinisign chmod.
+	return os.WriteFile(path, []byte(comment+"\n"+rest), guardrail.SecretPerm)
 }
