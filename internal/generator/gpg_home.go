@@ -6,13 +6,23 @@ import (
 	"path/filepath"
 )
 
-// macOS AF_UNIX sun_path is 104 bytes. Default agent socket lives at
-// $GNUPGHOME/S.gpg-agent — leave headroom for the socket basename.
-const maxGNUPGHomeWithoutSocketdir = 90
+// macOS AF_UNIX sun_path is 104 bytes (including the trailing NUL on some
+// kernels). Default agent socket lives at $GNUPGHOME/S.gpg-agent (13-byte
+// suffix including the separator). Budget the home path so
+// home+"/S.gpg-agent" stays safely under the limit with a few bytes of slack.
+//
+// 104 - 13 (socket) - 1 (NUL) - slack → keep homes ≤ 80 when create-socketdir
+// is unavailable. Historical long staging names under ~/dev/dogfooding reached
+// ~88 chars and gpg-agent failed to start on macOS without /run/user.
+const maxGNUPGHomeWithoutSocketdir = 80
 
 // prepareGPGHome ensures the isolated home is ready for agent use. Deep
 // output paths fail closed unless gpgconf can create a short socketdir —
 // never leave a half-generated corpus after agent socket failures mid-mint.
+//
+// Isolation rule: GNUPGHOME is always under the corpus root (never the user
+// default keyring). create-socketdir may place sockets under a short system
+// path when available; that is still scoped to this --homedir, not ~/.gnupg.
 func prepareGPGHome(ctx context.Context, root string, runner Runner) error {
 	home := filepath.Join(root, ".gnupg")
 	env := sidecarEnv(root)

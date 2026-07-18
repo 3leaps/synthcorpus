@@ -7,10 +7,18 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/3leaps/synthcorpus/internal/guardrail"
 )
+
+// stagingDirPrefix is a short, marker-style name for the mint staging root.
+// Longer historical names (.synthcorpus-staging-<pid>-<unixnano>) pushed
+// isolated GNUPGHOME paths over macOS AF_UNIX limits on shallow dogfood
+// parents such as ~/dev/dogfooding, so gpg-agent could not start even though
+// the final published root would have been short enough.
+const stagingDirPrefix = ".sc-stg-"
 
 const (
 	KnownPassphrase = "synthcorpus-known-test-passphrase"
@@ -74,8 +82,13 @@ func Generate(ctx context.Context, opts Options) (err error) {
 	// the final root only after every step succeeds so failures never leave a
 	// half-generated corpus (and --force does not destroy a prior good corpus
 	// before the replacement is proven).
+	//
+	// Staging stays a sibling of the final root (same volume) so publish can
+	// rename atomically. The directory name is intentionally short so the
+	// isolated staging GNUPGHOME fits macOS AF_UNIX socket limits when
+	// gpgconf --create-socketdir is unavailable (common without /run/user).
 	parent := filepath.Dir(finalRoot)
-	stagingName := fmt.Sprintf(".synthcorpus-staging-%d-%d", os.Getpid(), opts.Now().UnixNano())
+	stagingName := stagingDirName(opts.Now(), os.Getpid())
 	stagingPath := filepath.Join(parent, stagingName)
 
 	staging, err := guardrail.PrepareOutputRoot(stagingPath, true)
@@ -88,7 +101,7 @@ func Generate(ctx context.Context, opts Options) (err error) {
 			return
 		}
 		// Cleanup failures must surface — silent discard can leave real
-		// generated material under .synthcorpus-staging-* after Generate errs.
+		// generated material under .sc-stg-* after Generate errs.
 		if cleanErr := removeAll(staging); cleanErr != nil {
 			if err != nil {
 				err = fmt.Errorf("%w (also failed to remove staging %s: %v)", err, staging, cleanErr)
@@ -143,6 +156,18 @@ func checkFinalRootForGenerate(final string, force bool) error {
 		return err
 	}
 	return nil
+}
+
+// stagingDirName builds a short unique staging directory basename.
+// Format: .sc-stg-<pid5>-<hex8> (~22 chars) vs historical ~48-char names.
+func stagingDirName(now time.Time, pid int) string {
+	n := uint64(now.UnixNano())
+	mixed := uint32(n ^ (n >> 32))
+	return fmt.Sprintf("%s%05d-%08x", stagingDirPrefix, pid%100000, mixed)
+}
+
+func isStagingDirName(name string) bool {
+	return strings.HasPrefix(name, stagingDirPrefix) || strings.HasPrefix(name, ".synthcorpus-staging-")
 }
 
 func mintIntoRoot(ctx context.Context, root string, opts Options) error {
