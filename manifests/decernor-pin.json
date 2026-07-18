@@ -1,0 +1,14 @@
+{
+  "schema_version": "v0",
+  "kind": "synthcorpus-decernor-pin",
+  "consumer": "synthcorpus",
+  "tool": "decernor",
+  "min_version": "0.1.1",
+  "preferred_commit": "c23af46",
+  "source_repo": "https://github.com/3leaps/decernor",
+  "locate": {
+    "env": "DECERNOR_BIN",
+    "path_names": ["decernor"]
+  },
+  "notes": "Soft pin for the drift-check consumer leg. Locate decernor by built binary only (never a sibling worktree path). Exact committed goldens wait on synthetic fixtures; generated-real remains property-check only."
+}
