@@ -125,7 +125,7 @@ func TestGenerateUsesGuardedLayoutAndExplicitSidecarCalls(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, e := range entries {
-		if strings.HasPrefix(e.Name(), ".synthcorpus-staging-") {
+		if isStagingDirName(e.Name()) {
 			t.Fatalf("leftover staging directory after success: %s", e.Name())
 		}
 	}
@@ -149,7 +149,7 @@ func TestGenerateUsesGuardedLayoutAndExplicitSidecarCalls(t *testing.T) {
 		t.Fatalf("expected sidecar calls")
 	}
 	// Mint runs in a staging directory (renamed to final on success), so
-	// GNUPGHOME is under .synthcorpus-staging-* during sidecar calls.
+	// GNUPGHOME is under .sc-stg-* during sidecar calls (never the user default).
 	for _, call := range runner.calls {
 		if call.name == "" {
 			t.Fatalf("empty sidecar name")
@@ -164,7 +164,7 @@ func TestGenerateUsesGuardedLayoutAndExplicitSidecarCalls(t *testing.T) {
 		if gnupg == "" || filepath.Base(gnupg) != ".gnupg" {
 			t.Fatalf("call %s missing isolated GNUPGHOME: %#v", call.name, call.env)
 		}
-		if !strings.Contains(gnupg, ".synthcorpus-staging-") {
+		if !strings.Contains(gnupg, stagingDirPrefix) {
 			t.Fatalf("call %s GNUPGHOME should be under staging root during mint: %q", call.name, gnupg)
 		}
 		if envContainsPrefix(call.env, "GNUPGHOME=/tmp/user-gnupg-that-must-not-leak") {
@@ -461,7 +461,7 @@ func TestGeneratePublishRenameFailureRestoresPrior(t *testing.T) {
 	// Fail only the staging→final publish rename (after prior was moved to backup).
 	// Compare against realpath: ResolveOutputPath canonicalizes on macOS.
 	rename = func(oldpath, newpath string) error {
-		if strings.Contains(oldpath, ".synthcorpus-staging-") && newpath == realFinal {
+		if isStagingDirName(filepath.Base(oldpath)) && newpath == realFinal {
 			return errors.New("injected publish rename failure")
 		}
 		return origRename(oldpath, newpath)
@@ -496,7 +496,7 @@ func TestGenerateSurfacesStagingCleanupFailure(t *testing.T) {
 
 	var residual string
 	removeAll = func(path string) error {
-		if strings.Contains(filepath.Base(path), ".synthcorpus-staging-") {
+		if isStagingDirName(filepath.Base(path)) {
 			residual = path
 			return errors.New("injected staging cleanup failure")
 		}
@@ -564,7 +564,7 @@ func TestGenerateDeepPathGPGConfFailureLeavesNoCorpus(t *testing.T) {
 			return nil
 		}
 		name := d.Name()
-		if strings.HasPrefix(name, ".synthcorpus-staging-") || strings.Contains(name, ".synthcorpus-backup-") {
+		if isStagingDirName(name) || strings.Contains(name, ".synthcorpus-backup-") {
 			t.Errorf("leftover after deep-path failure: %s", path)
 		}
 		return nil
@@ -579,11 +579,35 @@ func assertNoStagingOrBackup(t *testing.T, parent string) {
 	}
 	for _, e := range entries {
 		name := e.Name()
-		// Staging: .synthcorpus-staging-*
+		// Staging: .sc-stg-* (legacy .synthcorpus-staging-* also recognized)
 		// Backup of final "decernor": decernor.synthcorpus-backup-<pid>
-		if strings.HasPrefix(name, ".synthcorpus-staging-") || strings.Contains(name, ".synthcorpus-backup-") {
+		if isStagingDirName(name) || strings.Contains(name, ".synthcorpus-backup-") {
 			t.Fatalf("leftover %s under %s", name, parent)
 		}
+	}
+}
+
+func TestStagingDirNameKeepsDogfoodGPGHomeInBudget(t *testing.T) {
+	// Representative length of a shallow dogfood parent such as
+	// $HOME/dev/dogfooding on common layouts (34 characters). Synthetic only —
+	// do not embed real workstation paths in committed tests.
+	const representativeDogfoodParentLen = 34
+	parent := strings.Repeat("d", representativeDogfoodParentLen)
+	name := stagingDirName(time.Date(2026, 7, 18, 15, 0, 0, 123456789, time.UTC), 87800)
+	if !strings.HasPrefix(name, stagingDirPrefix) {
+		t.Fatalf("prefix = %q", name)
+	}
+	if len(name) > 24 {
+		t.Fatalf("staging name too long: %q (len=%d)", name, len(name))
+	}
+	home := filepath.Join(parent, name, ".gnupg")
+	if len(home) > maxGNUPGHomeWithoutSocketdir {
+		t.Fatalf("dogfood staging GNUPGHOME still over budget: len=%d > %d (name=%q)", len(home), maxGNUPGHomeWithoutSocketdir, name)
+	}
+	// Historical long form must exceed the budget (regression anchor).
+	legacy := filepath.Join(parent, fmt.Sprintf(".synthcorpus-staging-%d-%d", 87800, 1784388756546086000), ".gnupg")
+	if len(legacy) <= maxGNUPGHomeWithoutSocketdir {
+		t.Fatalf("legacy staging unexpectedly fits budget (len=%d); update regression anchor", len(legacy))
 	}
 }
 
