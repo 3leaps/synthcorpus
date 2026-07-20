@@ -9,3 +9,18 @@ synthcorpus is the shared, synthetic security-fixture corpus for the 3 Leaps gal
 ---
 
 One-line: Synthetic, scanner-safe security-fixture corpus + throwaway-key generator for 3 Leaps detectors (decernor, seclusor). Real-shaped, never real.
+
+## Layout (quick)
+
+| Path | Role |
+|------|------|
+| `fixtures/` | **Committed-synthetic only** — provably unusable; see `fixtures/README.md` |
+| `docs/coverage-matrix.md` | Per-(kind × class) synthetic vs generated-real-only split |
+| `cmd/synthcorpus-gen` | Generated-real mint (dogfooding roots only; never inside git) |
+| `manifests/decernor-pin.json` | Consumer pin for drift-check locate-by-binary |
+| `AGENTS.md` | Agent guide — **safety header first** |
+
+```sh
+make check-all
+./bin/synthcorpus-gen --out ~/dev/dogfooding/decernor decernor   # outside this repo
+```

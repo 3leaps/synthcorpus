@@ -1,0 +1,34 @@
+# Scan with --source . from the repo root so finding paths are source-root-relative.
+# private-key allowlists: condition AND of exact-case registered path + full-match exact content.
+
+title = "synthcorpus"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "private-key"
+description = "Identified a Private Key, which may compromise cryptographic security and sensitive data encryption."
+regex = '''(?i)-----BEGIN[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----[\s\S]*?-----END[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----'''
+keywords = ["-----begin"]
+
+[[rules.allowlists]]
+description = "fixtures/gpg/private.asc exact-case path + full-match reviewed content"
+condition = "AND"
+paths = ['''^fixtures/gpg/private\.asc$''']
+regexes = ['''\A\-\-\-\-\-BEGIN\ PGP\ PRIVATE\ KEY\ BLOCK\-\-\-\-\-\nVersion:\ synthcorpus\-committed\-synthetic\ 0\n\nNOTAKEYSECRETAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\nNOTAKEYSECRETAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n=AAAA\n\-\-\-\-\-END\ PGP\ PRIVATE\ KEY\ BLOCK\-\-\-\-\-\n?\z''']
+
+[[rules.allowlists]]
+description = "fixtures/ssh/id_ed25519 exact-case path + full-match reviewed content"
+condition = "AND"
+paths = ['''^fixtures/ssh/id_ed25519$''']
+regexes = ['''\A\-\-\-\-\-BEGIN\ OPENSSH\ PRIVATE\ KEY\-\-\-\-\-\nc3ludGhjb3JwdXMtY29tbWl0dGVkLXN5bnRoZXRpYy1ub3QtYS1rZXk=\n\-\-\-\-\-END\ OPENSSH\ PRIVATE\ KEY\-\-\-\-\-\n?\z''']
+
+[[rules.allowlists]]
+description = "internal/generator/malformed.go exact-case path + full-match reviewed specimens"
+condition = "AND"
+paths = ['''^internal/generator/malformed\.go$''']
+regexes = [
+  '''\A\-\-\-\-\-BEGIN\ PGP\ PRIVATE\ KEY\ BLOCK\-\-\-\-\-\nComment:\ synthcorpus\ generated\-real\ malformed\ TEST\ KEY\ \-\ DO\ NOT\ USE\n\nnot\-a\-complete\-packet\n\-\-\-\-\-END\ PGP\ PRIVATE\ KEY\ BLOCK\-\-\-\-\-\n?\z''',
+  '''\A\-\-\-\-\-BEGIN\ OPENSSH\ PRIVATE\ KEY\-\-\-\-\-\nsynthcorpus\ generated\-real\ malformed\ TEST\ KEY\ \-\ DO\ NOT\ USE\n\-\-\-\-\-END\ OPENSSH\ PRIVATE\ KEY\-\-\-\-\-\n?\z''',
+]
