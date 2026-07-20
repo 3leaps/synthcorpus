@@ -43,7 +43,7 @@ build-linux-arm64:
 gitleaks:
 	@command -v gitleaks >/dev/null || { echo 'gitleaks required on PATH'; exit 1; }
 	# --source . keeps finding paths source-root-relative for ^path$ allowlists
-	gitleaks detect --source . --no-git --config .gitleaks.toml --no-banner --redact=100
+	gitleaks detect --source . --no-git --config .gitleaks.toml --no-banner --redact=100 --max-decode-depth=0
 	go test -tags=scanner ./internal/provability/ -count=1
 
 # Supported-host gate: real helpers must identify themselves and reject fixtures.

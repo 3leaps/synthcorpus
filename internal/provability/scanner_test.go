@@ -27,7 +27,7 @@ func TestGitleaksCommittedTreeClean(t *testing.T) {
 	config := filepath.Join(repo, ".gitleaks.toml")
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, gitleaks, "detect", "--source", ".", "--no-git", "--config", config, "--no-banner")
+	cmd := exec.CommandContext(ctx, gitleaks, "detect", "--source", ".", "--no-git", "--config", config, "--no-banner", "--max-decode-depth=0")
 	cmd.Dir = repo
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("gitleaks on committed tree: %v\n%s", err, out)
@@ -342,7 +342,7 @@ func runGitleaksExpectLeak(t *testing.T, gitleaks, config, sourceRoot, report st
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, gitleaks, "detect",
-		"--source", ".", "--no-git", "--config", config, "--no-banner",
+		"--source", ".", "--no-git", "--config", config, "--no-banner", "--max-decode-depth=0",
 		"-f", "json", "-r", report, "--exit-code", "1")
 	cmd.Dir = sourceRoot
 	err := cmd.Run()
