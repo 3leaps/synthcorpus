@@ -6,6 +6,9 @@ tests (`internal/provability`). They are intentionally unusable as real keys.
 - **Do not** replace them with generated-real dogfood output.
 - **Do not** expect `gpg` / `minisign` / `ssh-keygen` to import or use them.
 - Layout follows `docs/coverage-matrix.md`.
+- Exact decernor output is pinned by
+  `manifests/decernor-fingerprint-golden.json`; any consumer drift must be
+  reviewed rather than regenerated silently.
 
 | Path | Intent |
 |------|--------|

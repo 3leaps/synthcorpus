@@ -40,7 +40,8 @@ for 3 Leaps detectors (decernor first). Real-shaped, never real.
 make test               # pure-Go unit tests (all platforms; no external tools)
 make gitleaks           # scanner config + hermetic canaries (requires gitleaks)
 make provability        # helper-backed proofs (requires gpg/minisign/ssh-keygen)
-make check-all          # fmt + test + build + gitleaks + provability + branch diff --check
+make contract           # exact synthetic golden + property-only generated-real checks
+make check-all          # fmt + test + build + scanners + proofs + contract + diff --check
 make build
 ```
 
@@ -50,6 +51,10 @@ Generator:
 # never run with --out inside a git worktree
 ./bin/synthcorpus-gen --out ~/dev/dogfooding/decernor decernor
 ```
+
+The consumer contract locates a pinned decernor binary through an absolute
+`DECERNOR_BIN` or `PATH`; it never guesses a sibling worktree path. Generated-real
+contract output is validated transiently and is never committed.
 
 ## Rules of the road
 
