@@ -1,4 +1,4 @@
-.PHONY: all help fmt test build build-linux-arm64 gitleaks provability check-all clean
+.PHONY: all help fmt test build build-linux-arm64 gitleaks provability drift-check generated-real-check contract check-all clean
 
 BINARY_NAME := synthcorpus-gen
 BINARY_EXT :=
@@ -6,7 +6,7 @@ ifeq ($(OS),Windows_NT)
 	BINARY_EXT := .exe
 endif
 
-# Branch-range whitespace check for closeout (committed tip vs main).
+# Whitespace checks cover both the live working tree and committed tip vs main.
 DIFF_BASE ?= origin/main
 
 all: check-all
@@ -20,7 +20,10 @@ help:
 		'  build-linux-arm64 Static linux/arm64 binary (ceremony VM delivery)' \
 		'  gitleaks          Scanner gate: CLI detect + hermetic canary tests (needs gitleaks)' \
 		'  provability       Helper-backed negative-crypto proofs (needs gpg/minisign/ssh-keygen)' \
-		'  check-all         fmt + pure-Go tests + build + gitleaks + provability + diff --check' \
+		'  drift-check       Exact committed-synthetic decernor golden check (needs pinned decernor)' \
+		'  generated-real-check  Property-only dogfood check (needs pinned decernor + sidecars)' \
+		'  contract          Run both decernor consumer-contract lanes' \
+		'  check-all         fmt + tests + build + scanners + proofs + contract + diff --check' \
 		'  clean             Remove local build artifacts'
 
 fmt:
@@ -47,7 +50,16 @@ gitleaks:
 provability:
 	go test -tags=sidecars ./internal/provability/ -count=1
 
-check-all: fmt test build gitleaks provability
+drift-check:
+	go test -tags=contract ./internal/decernorcontract/ -run '^TestCommittedSyntheticGolden$$' -count=1
+
+generated-real-check:
+	go test -tags=contract,sidecars ./internal/decernorcontract/ -run '^TestGeneratedRealProperties$$' -count=1
+
+contract: drift-check generated-real-check
+
+check-all: fmt test build gitleaks provability contract
+	@git diff --check
 	@git diff --check $(DIFF_BASE)...HEAD
 	@echo 'check-all ok'
 

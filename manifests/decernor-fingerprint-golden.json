@@ -1,0 +1,29 @@
+{
+  "schema_version": "v0",
+  "kind": "synthcorpus-decernor-fingerprint-golden",
+  "material_lane": "committed-synthetic",
+  "pin_reference": "manifests/decernor-pin.json",
+  "invocation": {
+    "command": "fingerprint",
+    "input": "fixtures",
+    "format": "ndjson",
+    "path_mode": "relative",
+    "fail_on_empty": true
+  },
+  "normalization": {
+    "path_separator": "/",
+    "ordering": [
+      "path",
+      "kind",
+      "class",
+      "fingerprint_scheme",
+      "key_id|fingerprint|reason"
+    ],
+    "timestamps": "absent"
+  },
+  "expected_records": 10,
+  "golden": {
+    "path": "manifests/decernor-fingerprint-v0.ndjson",
+    "sha256": "a8a0c59fcd04a18200e8fa610b01dc5d5dc3a2760da5814d4489f8d51876a0b9"
+  }
+}

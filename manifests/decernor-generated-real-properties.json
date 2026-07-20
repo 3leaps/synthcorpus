@@ -1,0 +1,90 @@
+{
+  "schema_version": "v0",
+  "kind": "synthcorpus-decernor-generated-real-properties",
+  "material_lane": "generated-real",
+  "pin_reference": "manifests/decernor-pin.json",
+  "invocation": {
+    "command": "fingerprint",
+    "input": "generated-real-root",
+    "format": "ndjson",
+    "path_mode": "relative",
+    "fail_on_empty": true
+  },
+  "expected_record_count": 21,
+  "scheme_counts": {
+    "openpgp-fingerprint-v1": 9,
+    "minisign-key-id-v1": 5,
+    "minisign-public-blob-sha256-v1": 2,
+    "ssh-rfc4253-public-blob-sha256-v1": 5
+  },
+  "closed_reasons": [
+    "parse-unsupported",
+    "unsupported-kind",
+    "encrypted-private-no-public-counterpart"
+  ],
+  "required_null_records": [
+    {
+      "path": "gpg/revocation.asc",
+      "kind": "gpg",
+      "class": "other",
+      "fingerprint_scheme": "openpgp-fingerprint-v1",
+      "reason": "unsupported-kind"
+    },
+    {
+      "path": "malformed/gpg-truncated.asc",
+      "kind": "gpg",
+      "class": "private",
+      "fingerprint_scheme": "openpgp-fingerprint-v1",
+      "reason": "parse-unsupported"
+    },
+    {
+      "path": "malformed/ssh-truncated",
+      "kind": "ssh",
+      "class": "private",
+      "fingerprint_scheme": "ssh-rfc4253-public-blob-sha256-v1",
+      "reason": "parse-unsupported"
+    },
+    {
+      "path": "minisign/minisign-protected.key",
+      "kind": "minisign",
+      "class": "private",
+      "fingerprint_scheme": "minisign-key-id-v1",
+      "reason": "encrypted-private-no-public-counterpart"
+    },
+    {
+      "path": "ssh/id_ed25519_protected",
+      "kind": "ssh",
+      "class": "private",
+      "fingerprint_scheme": "ssh-rfc4253-public-blob-sha256-v1",
+      "reason": "encrypted-private-no-public-counterpart"
+    }
+  ],
+  "required_path_schemes": [
+    {
+      "path": "minisign/minisign-plain.pub",
+      "schemes": [
+        "minisign-key-id-v1",
+        "minisign-public-blob-sha256-v1"
+      ]
+    },
+    {
+      "path": "minisign/minisign-protected.pub",
+      "schemes": [
+        "minisign-key-id-v1",
+        "minisign-public-blob-sha256-v1"
+      ]
+    },
+    {
+      "path": "ssh/id_ed25519_plain.pub",
+      "schemes": [
+        "ssh-rfc4253-public-blob-sha256-v1"
+      ]
+    }
+  ],
+  "path_policy": {
+    "mode": "relative",
+    "separator": "/",
+    "absolute_paths": "forbidden",
+    "parent_traversal": "forbidden"
+  }
+}

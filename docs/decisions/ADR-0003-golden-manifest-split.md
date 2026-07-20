@@ -2,8 +2,7 @@
 
 ## Status
 
-Accepted (soft path) — pin + locate contract landed for the drift-check consumer
-leg; exact goldens wait on committed-synthetic fixtures.
+Accepted and implemented.
 
 ## Context
 
@@ -19,10 +18,16 @@ fixtures are stable and must prove they are unusable as real keys.
    null+reason cases, path_mode hygiene. Never commit exact fingerprints.
 3. **Locate decernor by built binary + declared version** (`DECERNOR_BIN` or
    `PATH`). Never resolve via sibling path (`../decernor`).
+4. The committed-synthetic contract compares raw newline-terminated NDJSON
+   bytes. Its manifest declares the relative path mode, stable record ordering,
+   timestamp absence, expected record count, output path, and SHA-256 digest;
+   the verifier performs no hand-normalization.
+5. The generated-real contract mints into an isolated temporary root and checks
+   only schema, record/scheme counts, fail-closed reasons, canonical value
+   encodings, and relative-path hygiene. It never persists detector output.
 
 ## Consequences
 
-- Drift CI can fail closed on synthetic golden divergence once synthetic
-  fixtures exist.
+- The local/CI contract fails closed on committed-synthetic byte drift.
 - Dogfood/ceremony evidence stays local under dogfooding roots.
 - Detector repos remain free of key-minting responsibilities.

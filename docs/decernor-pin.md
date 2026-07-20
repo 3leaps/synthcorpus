@@ -9,7 +9,7 @@ worktree path, never a Go module import from decernor into synthcorpus.
 |-------|-------|
 | Source | https://github.com/3leaps/decernor |
 | Min version | `0.1.1` |
-| Preferred commit | `c23af46` (main tip that closed minisign public-blob detection) |
+| Preferred commit | `8ca1555` (includes minisign public-blob detection and fail-closed GPG revocation mapping) |
 | Machine pin file | [`manifests/decernor-pin.json`](../manifests/decernor-pin.json) |
 
 Until decernor cuts a release tag suitable for CI, the **commit SHA** is the
@@ -27,19 +27,24 @@ Verify identity with extended version output (never parse secret material):
 ```sh
 "$DECERNOR_BIN" version -e
 # Version: 0.1.1
-# Commit:  c23af46
+# Commit:  8ca1555
 ```
 
 Package helper: `internal/decernorloc` (`Locate`, `ReadIdentity`, `CheckPin`).
 Empty/`unknown` commits and malformed versions fail closed.
 
-## What this soft path does / does not
+## Contract lanes
 
-| In scope now | Deferred |
-|--------------|----------|
-| Declared pin + locate-by-binary | Exact goldens over committed-synthetic fixtures |
-| Version/commit gate for local/CI drift tools | Full CI matrix install of decernor releases |
-| Property-check lane guidance for generated-real | Schema promotion consumer-proof claims |
+| Lane | Contract |
+|------|----------|
+| Committed-synthetic | Raw NDJSON bytes match `manifests/decernor-fingerprint-v0.ndjson`; manifest header fixes relative paths, stable ordering, timestamp absence, record count, and digest |
+| Generated-real | Transient output satisfies schema, count/scheme, canonical encoding, null+reason, and relative-path properties; no random fingerprint is persisted |
+
+Run both against the declared binary:
+
+```sh
+DECERNOR_BIN=/absolute/path/to/decernor make contract
+```
 
 ## Generated-real property checks (no exact fingerprints)
 
@@ -51,4 +56,4 @@ When exercising a dogfood corpus from `synthcorpus-gen`:
   `reason=unsupported-kind` (not `helper-unavailable`).
 - Paths honor the selected `path_mode` (never absolute on default relative mode
   for walk roots).
-- Never commit generated-real fingerprints into this repository.
+- Never commit generated-real fingerprints or captured detector output into this repository.
