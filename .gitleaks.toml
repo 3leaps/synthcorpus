@@ -32,3 +32,9 @@ regexes = [
   '''\A\-\-\-\-\-BEGIN\ PGP\ PRIVATE\ KEY\ BLOCK\-\-\-\-\-\nComment:\ synthcorpus\ generated\-real\ malformed\ TEST\ KEY\ \-\ DO\ NOT\ USE\n\nnot\-a\-complete\-packet\n\-\-\-\-\-END\ PGP\ PRIVATE\ KEY\ BLOCK\-\-\-\-\-\n?\z''',
   '''\A\-\-\-\-\-BEGIN\ OPENSSH\ PRIVATE\ KEY\-\-\-\-\-\nsynthcorpus\ generated\-real\ malformed\ TEST\ KEY\ \-\ DO\ NOT\ USE\n\-\-\-\-\-END\ OPENSSH\ PRIVATE\ KEY\-\-\-\-\-\n?\z''',
 ]
+
+[[rules]]
+id = "synthetic-negative-control"
+description = "Disposable CI scanner negative control"
+regex = '''SYNTHCORPUS_SYNTHETIC_NEGATIVE_CONTROL'''
+path = '''^NEGATIVE_CONTROL\.txt$'''
