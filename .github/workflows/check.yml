@@ -1,0 +1,139 @@
+name: check
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+permissions:
+  contents: read
+concurrency:
+  group: check-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  basic-ubuntu:
+    name: basic-ubuntu
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Assert Go version
+        shell: bash
+        run: |
+          go version
+          test "$(go env GOVERSION)" = "go$(awk '$1 == "go" { print $2 }' go.mod)"
+      - name: Check formatting
+        shell: bash
+        run: test -z "$(gofmt -l .)"
+      - name: Vet
+        run: go vet ./...
+      - name: Prove guardrails run without skips
+        shell: bash
+        run: |
+          output="$RUNNER_TEMP/guardrail-test.log"
+          set +e
+          go test -race -count=1 -v ./internal/guardrail 2>&1 | tee "$output"
+          status=${PIPESTATUS[0]}
+          set -e
+          if [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi
+          grep -q '^=== RUN' "$output"
+          if grep -q '^--- SKIP:' "$output"; then
+            echo 'guardrail tests must not skip' >&2
+            exit 1
+          fi
+      - name: Test default lane
+        run: go test -race -count=1 ./...
+  basic-macos:
+    name: basic-macos
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Assert Go version
+        shell: bash
+        run: |
+          go version
+          test "$(go env GOVERSION)" = "go$(awk '$1 == "go" { print $2 }' go.mod)"
+      - name: Check formatting
+        shell: bash
+        run: test -z "$(gofmt -l .)"
+      - name: Vet
+        run: go vet ./...
+      - name: Prove guardrails run without skips
+        shell: bash
+        run: |
+          output="$RUNNER_TEMP/guardrail-test.log"
+          set +e
+          go test -race -count=1 -v ./internal/guardrail 2>&1 | tee "$output"
+          status=${PIPESTATUS[0]}
+          set -e
+          if [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi
+          grep -q '^=== RUN' "$output"
+          if grep -q '^--- SKIP:' "$output"; then
+            echo 'guardrail tests must not skip' >&2
+            exit 1
+          fi
+      - name: Test default lane
+        run: go test -race -count=1 ./...
+  gitleaks:
+    name: gitleaks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Assert Go version
+        shell: bash
+        run: |
+          go version
+          test "$(go env GOVERSION)" = "go$(awk '$1 == "go" { print $2 }' go.mod)"
+      - name: Install verified Gitleaks
+        shell: bash
+        env:
+          GITLEAKS_VERSION: 8.30.1
+          GITLEAKS_ARCHIVE_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+        run: |
+          archive="$RUNNER_TEMP/gitleaks.tar.gz"
+          curl --proto '=https' --tlsv1.2 --fail --location --silent --show-error \
+            --output "$archive" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          printf '%s  %s\n' "$GITLEAKS_ARCHIVE_SHA256" "$archive" | sha256sum --check --strict
+          tar -xzf "$archive" -C "$RUNNER_TEMP" gitleaks
+          printf '%s\n' "$RUNNER_TEMP" >> "$GITHUB_PATH"
+      - name: Assert Gitleaks version
+        shell: bash
+        env:
+          GITLEAKS_VERSION: 8.30.1
+        run: |
+          gitleaks version
+          test "$(gitleaks version)" = "$GITLEAKS_VERSION"
+      # The checkout is a git worktree, so the generator guard refuses any
+      # accidental attempt to mint generated-real material in the workspace.
+      - name: Scan committed tree and run scanner canaries
+        run: make gitleaks
