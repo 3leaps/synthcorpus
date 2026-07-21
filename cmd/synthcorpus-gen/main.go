@@ -4,30 +4,38 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
+	"github.com/3leaps/synthcorpus"
 	"github.com/3leaps/synthcorpus/internal/generator"
 )
 
 func main() {
-	if err := run(os.Args[1:]); err != nil {
+	if err := run(os.Args[1:], os.Stdout, os.Stderr); err != nil {
 		fmt.Fprintf(os.Stderr, "synthcorpus-gen: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(args []string) error {
+func run(args []string, stdout, stderr io.Writer) error {
 	fs := flag.NewFlagSet("synthcorpus-gen", flag.ContinueOnError)
-	fs.SetOutput(os.Stderr)
+	fs.SetOutput(stderr)
 
 	var out string
 	var force bool
+	var showVersion bool
 	fs.StringVar(&out, "out", "", "output directory; defaults to ~/dev/dogfooding/<tool>")
 	fs.BoolVar(&force, "force", false, "replace an existing synthcorpus-owned generated-real directory")
+	fs.BoolVar(&showVersion, "version", false, "print version and exit")
 
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+	if showVersion {
+		fmt.Fprintln(stdout, synthcorpus.Version())
+		return nil
 	}
 	if fs.NArg() != 1 {
 		return fmt.Errorf("usage: synthcorpus-gen [--out DIR] [--force] <tool>")
