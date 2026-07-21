@@ -16,6 +16,7 @@ One-line: Synthetic, scanner-safe security-fixture corpus + throwaway-key genera
 |------|------|
 | `fixtures/` | **Committed-synthetic only** — provably unusable; see `fixtures/README.md` |
 | `docs/coverage-matrix.md` | Per-(kind × class) synthetic vs generated-real-only split |
+| `ci/platforms.json` | Five-platform obligations plus machine-checked observed execution states |
 | `cmd/synthcorpus-gen` | Generated-real mint (dogfooding roots only; never inside git) |
 | `manifests/decernor-pin.json` | Consumer pin for drift-check locate-by-binary |
 | `manifests/decernor-fingerprint-golden.json` | Deterministic committed-synthetic fingerprint contract |

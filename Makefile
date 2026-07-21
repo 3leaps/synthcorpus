@@ -1,4 +1,4 @@
-.PHONY: all help fmt test build build-linux-arm64 gitleaks provability drift-check generated-real-check contract check-all clean
+.PHONY: all help fmt test policy build build-linux-arm64 gitleaks provability drift-check generated-real-check contract check-all clean
 
 BINARY_NAME := synthcorpus-gen
 BINARY_EXT :=
@@ -16,6 +16,7 @@ help:
 		'synthcorpus targets:' \
 		'  fmt               Format Go sources' \
 		'  test              Pure-Go unit tests (no gpg/minisign/ssh-keygen/gitleaks)' \
+		'  policy            CI platform + no-publish/workflow policy tests' \
 		'  build             Build cmd/synthcorpus-gen for the host' \
 		'  build-linux-arm64 Static linux/arm64 binary (ceremony VM delivery)' \
 		'  gitleaks          Scanner gate: CLI detect + hermetic canary tests (needs gitleaks)' \
@@ -31,6 +32,9 @@ fmt:
 
 test:
 	go test ./...
+
+policy:
+	go test ./internal/repopolicy/ -count=1
 
 build:
 	mkdir -p bin
@@ -58,7 +62,7 @@ generated-real-check:
 
 contract: drift-check generated-real-check
 
-check-all: fmt test build gitleaks provability contract
+check-all: fmt test policy build gitleaks provability contract
 	@git diff --check
 	@git diff --check $(DIFF_BASE)...HEAD
 	@echo 'check-all ok'

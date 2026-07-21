@@ -42,6 +42,15 @@ The closed file set under `fixtures/` is defined in
 2. **Do not** expand **C** cells into cryptographically valid importable keys without revisiting this matrix and dual review (secrev).
 3. Golden manifests (exact decernor output) apply only to **C** cells once the drift-check workstream lands.
 
+## CI platform declaration
+
+`ci/platforms.json` declares desired five-platform coverage separately from
+observed execution. Every platform requires the sidecar-free lane, but only an
+`active` lane with its exact command bound to the declared workflow job counts
+as executed. Blocked, deferred, and excluded records require a missing
+capability, reason, and lift condition; verbose policy CI logs each record
+instead of silently treating it as coverage.
+
 ## Related
 
 - ADR-0001 generated-real / committed-synthetic boundary

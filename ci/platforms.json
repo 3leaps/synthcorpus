@@ -1,0 +1,172 @@
+{
+  "schema_version": "v0",
+  "kind": "synthcorpus-ci-platform-policy",
+  "platforms": [
+    {
+      "id": "linux-amd64",
+      "goos": "linux",
+      "goarch": "amd64",
+      "runner": {
+        "state": "active",
+        "label": "ubuntu-latest",
+        "job_id": "basic-ubuntu",
+        "job_name": "basic-ubuntu"
+      },
+      "lanes": {
+        "sidecar_free": {
+          "obligation": "required",
+          "execution": "active",
+          "command": "go test -race -count=1 ./..."
+        },
+        "committed_golden": {
+          "obligation": "required",
+          "execution": "blocked",
+          "missing_capability": "Pinned Decernor CI provisioning",
+          "reason": "The declared Decernor binary has no reviewed credential-free provisioning route for this job.",
+          "lift_condition": "Provision the declared pin, set an absolute DECERNOR_BIN, assert its embedded identity, and run make drift-check fail-closed."
+        },
+        "generated_real": {
+          "obligation": "required",
+          "execution": "blocked",
+          "missing_capability": "Pinned Decernor and verified sidecar provisioning",
+          "reason": "This job does not yet provision and capability-check every required helper plus the declared Decernor binary.",
+          "lift_condition": "Install and verify every helper, provision and identity-check the declared Decernor pin, then run make generated-real-check under runner temp."
+        }
+      }
+    },
+    {
+      "id": "linux-arm64",
+      "goos": "linux",
+      "goarch": "arm64",
+      "runner": {
+        "state": "deferred",
+        "missing_capability": "Validated native runner mapping",
+        "reason": "A canonical native runner label has not been assigned to this repository policy.",
+        "lift_condition": "Approve a canonical native runner label and bind it to an exact GOOS/GOARCH assertion."
+      },
+      "lanes": {
+        "sidecar_free": {
+          "obligation": "required",
+          "execution": "deferred",
+          "missing_capability": "Active linux-arm64 runner binding",
+          "reason": "The required sidecar-free lane has no authorized native runner job.",
+          "lift_condition": "Activate the validated runner binding and run the sidecar-free command in that exact job."
+        },
+        "committed_golden": {
+          "obligation": "required",
+          "execution": "deferred",
+          "missing_capability": "Active runner plus pinned Decernor provisioning",
+          "reason": "Neither the native runner job nor the declared consumer provisioning is active.",
+          "lift_condition": "Activate the runner, provision and identity-check the declared Decernor pin, and run make drift-check fail-closed."
+        },
+        "generated_real": {
+          "obligation": "required",
+          "execution": "deferred",
+          "missing_capability": "Active runner plus verified helper and Decernor provisioning",
+          "reason": "The native runner and its required sidecar/consumer provisioning are not active.",
+          "lift_condition": "Activate the runner, verify every helper and the declared Decernor pin, and run make generated-real-check under runner temp."
+        }
+      }
+    },
+    {
+      "id": "darwin-arm64",
+      "goos": "darwin",
+      "goarch": "arm64",
+      "runner": {
+        "state": "active",
+        "label": "macos-latest",
+        "job_id": "basic-macos",
+        "job_name": "basic-macos"
+      },
+      "lanes": {
+        "sidecar_free": {
+          "obligation": "required",
+          "execution": "active",
+          "command": "go test -race -count=1 ./..."
+        },
+        "committed_golden": {
+          "obligation": "required",
+          "execution": "blocked",
+          "missing_capability": "Pinned Decernor CI provisioning",
+          "reason": "The declared Decernor binary has no reviewed credential-free provisioning route for this job.",
+          "lift_condition": "Provision the declared pin, set an absolute DECERNOR_BIN, assert its embedded identity, and run make drift-check fail-closed."
+        },
+        "generated_real": {
+          "obligation": "required",
+          "execution": "blocked",
+          "missing_capability": "Pinned Decernor and verified sidecar provisioning",
+          "reason": "This job does not yet provision and capability-check every required helper plus the declared Decernor binary.",
+          "lift_condition": "Install and verify every helper, provision and identity-check the declared Decernor pin, then run make generated-real-check under runner temp."
+        }
+      }
+    },
+    {
+      "id": "windows-amd64",
+      "goos": "windows",
+      "goarch": "amd64",
+      "runner": {
+        "state": "deferred",
+        "missing_capability": "Validated native runner mapping",
+        "reason": "A canonical native runner label has not been assigned to this repository policy.",
+        "lift_condition": "Approve a canonical native runner label and bind it to an exact GOOS/GOARCH assertion."
+      },
+      "lanes": {
+        "sidecar_free": {
+          "obligation": "required",
+          "execution": "deferred",
+          "missing_capability": "Active windows-amd64 runner binding",
+          "reason": "The required sidecar-free lane has no authorized native runner job.",
+          "lift_condition": "Activate the validated runner binding and run the sidecar-free command in that exact job."
+        },
+        "committed_golden": {
+          "obligation": "required",
+          "execution": "deferred",
+          "missing_capability": "Active runner plus pinned Decernor provisioning",
+          "reason": "Neither the native runner job nor the declared consumer provisioning is active.",
+          "lift_condition": "Activate the runner, provision and identity-check the declared Decernor pin, and run make drift-check fail-closed."
+        },
+        "generated_real": {
+          "obligation": "excluded",
+          "execution": "excluded",
+          "missing_capability": "Verified minisign win-x64 provisioning",
+          "reason": "No reviewed HTTPS artifact pin, exact SHA-256 verification, architecture/version assertion, and non-interactive capability probe is recorded.",
+          "lift_condition": "Record and review all four minisign provisioning checks before changing the obligation and execution state."
+        }
+      }
+    },
+    {
+      "id": "windows-arm64",
+      "goos": "windows",
+      "goarch": "arm64",
+      "runner": {
+        "state": "deferred",
+        "missing_capability": "Validated native runner mapping",
+        "reason": "A canonical native runner label has not been assigned to this repository policy.",
+        "lift_condition": "Approve a canonical native runner label and bind it to an exact GOOS/GOARCH assertion."
+      },
+      "lanes": {
+        "sidecar_free": {
+          "obligation": "required",
+          "execution": "deferred",
+          "missing_capability": "Active windows-arm64 runner binding",
+          "reason": "The required sidecar-free lane has no authorized native runner job.",
+          "lift_condition": "Activate the validated runner binding and run the sidecar-free command in that exact job."
+        },
+        "committed_golden": {
+          "obligation": "required",
+          "execution": "deferred",
+          "missing_capability": "Active runner plus pinned Decernor provisioning",
+          "reason": "Neither the native runner job nor the declared consumer provisioning is active.",
+          "lift_condition": "Activate the runner, provision and identity-check the declared Decernor pin, and run make drift-check fail-closed."
+        },
+        "generated_real": {
+          "obligation": "excluded",
+          "execution": "excluded",
+          "missing_capability": "Upstream minisign arm64 Windows artifact",
+          "reason": "Upstream minisign does not provide a native arm64 Windows binary; x64 emulation is not accepted as native coverage.",
+          "lift_condition": "A native upstream artifact becomes available and passes pinned integrity, architecture/version, and non-interactive capability checks."
+        }
+      }
+    }
+  ]
+}
