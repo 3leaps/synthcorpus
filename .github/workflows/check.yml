@@ -29,11 +29,14 @@ jobs:
         run: |
           go version
           test "$(go env GOVERSION)" = "go$(awk '$1 == "go" { print $2 }' go.mod)"
+          test "$(go env GOOS)/$(go env GOARCH)" = "linux/amd64"
       - name: Check formatting
         shell: bash
         run: test -z "$(gofmt -l .)"
       - name: Vet
         run: go vet ./...
+      - name: Verify platform and no-publish policies
+        run: go test -count=1 -v ./internal/repopolicy
       - name: Prove guardrails run without skips
         shell: bash
         run: |
@@ -71,6 +74,7 @@ jobs:
         run: |
           go version
           test "$(go env GOVERSION)" = "go$(awk '$1 == "go" { print $2 }' go.mod)"
+          test "$(go env GOOS)/$(go env GOARCH)" = "darwin/arm64"
       - name: Check formatting
         shell: bash
         run: test -z "$(gofmt -l .)"

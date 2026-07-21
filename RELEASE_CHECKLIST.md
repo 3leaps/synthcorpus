@@ -44,6 +44,12 @@ and no generated-real material. This intentionally follows
 
 ## 3. No-publish sanity sweep
 
+- [ ] Run the durable repository policy gate:
+
+  ```sh
+  make policy
+  ```
+
 - [ ] Confirm the repository still contains no packaging configuration or
       package-manager publication surface:
 
