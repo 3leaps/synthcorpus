@@ -31,12 +31,13 @@ for the cases that require genuine cryptographic structure.
   blocked, deferred, and excluded states require a missing capability, reason,
   and lift condition instead of silent skips or emulation.
 - **Release identity and structural no-publish enforcement.** The repository
-  and generator report version `0.1.0`; workflow and repository policy reject
-  unreviewed publish paths and packaging metadata. Releases are signed tags plus
-  notes, with no prebuilt generator binary, package-manager artifact, separately
-  attached corpus bundle, artifact signature or key, checksum manifest, or
-  provenance asset. GitHub's automatic source archives contain only repository
-  content and therefore no generated-real material.
+  and generator report version `0.1.0`; workflow policy rejects capabilities
+  outside its exact allowed set, and repository policy forbids defined packaging
+  and release-automation surfaces. Releases are signed tags plus notes, with no
+  prebuilt generator binary, package-manager artifact, separately attached
+  corpus bundle, artifact signature or key, checksum manifest, or provenance
+  asset. GitHub's automatic source archives contain only repository content and
+  therefore no generated-real material.
 
 ### Governing invariant
 

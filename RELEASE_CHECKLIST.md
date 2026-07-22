@@ -13,7 +13,17 @@ follows
 
 ## 1. Quality gates
 
-- [ ] Confirm all release changes are merged to `main` and the worktree is clean.
+- [ ] Confirm all release changes are merged to `main`; fetch and record the
+      intended release commit; and confirm the clean checkout matches it:
+
+  ```sh
+  git fetch origin main
+  release_commit="$(git rev-parse origin/main)"
+  printf 'release commit: %s\n' "$release_commit"
+  test "$(git rev-parse HEAD)" = "$release_commit"
+  test -z "$(git status --porcelain)"
+  ```
+
 - [ ] Run the complete local gate with the pinned consumer binary:
 
   ```sh
@@ -21,7 +31,7 @@ follows
   ```
 
 - [ ] Confirm the required `basic-ubuntu`, `basic-macos`, and `gitleaks` checks
-      pass on the release commit.
+      pass on the recorded release commit.
 
 ## 2. Release identity and documentation
 
@@ -83,12 +93,20 @@ follows
 - [ ] Confirm the active tag-protection ruleset covers `refs/tags/v*`, blocks
       creation, update, deletion, and non-fast-forward changes, and permits only
       the authorized organization-administrator bypass.
+- [ ] Immediately before signing, fetch `origin/main`, resolve and print the
+      intended release commit again, and confirm the three required hosted
+      checks are green on that exact SHA.
 - [ ] As an authorized organization administrator, create and push the signed
       tag through the ruleset bypass:
 
   ```sh
-  git tag -s v0.1.0 -m "v0.1.0 — synthetic fixtures with provable boundaries"
+  git fetch origin main
+  release_commit="$(git rev-parse origin/main)"
+  printf 'release commit: %s\n' "$release_commit"
+  git tag -s -m "v0.1.0 — synthetic fixtures with provable boundaries" \
+    v0.1.0 "$release_commit"
   git tag -v v0.1.0
+  test "$(git rev-parse 'v0.1.0^{}')" = "$release_commit"
   git push origin v0.1.0
   ```
 
