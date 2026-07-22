@@ -1,4 +1,5 @@
 .PHONY: all help fmt test policy build build-linux-arm64 gitleaks provability drift-check generated-real-check contract check-all clean
+.PHONY: release-control-test release-guard-signing-env release-guard-tag-version release-guard-tag-ruleset release-tag release-push-tag release-verify-tag release-verify-remote-tag
 
 BINARY_NAME := synthcorpus-gen
 BINARY_EXT :=
@@ -25,6 +26,14 @@ help:
 		'  generated-real-check  Property-only dogfood check (needs pinned decernor + sidecars)' \
 		'  contract          Run both decernor consumer-contract lanes' \
 		'  check-all         fmt + tests + build + scanners + proofs + contract + diff --check' \
+		'  release-control-test  Hermetic negative tests for release tooling' \
+		'  release-guard-signing-env  Validate the operator-private signing environment' \
+		'  release-guard-tag-version  Verify release tag and commit inputs' \
+		'  release-guard-tag-ruleset  Verify the live version-tag publication policy' \
+		'  release-tag       Create and verify the signed release tag locally' \
+		'  release-push-tag  Recheck and push the signed release tag' \
+		'  release-verify-tag  Verify an existing signed release tag' \
+		'  release-verify-remote-tag  Verify GitHub tag signature state and target' \
 		'  clean             Remove local build artifacts'
 
 fmt:
@@ -32,6 +41,10 @@ fmt:
 
 test:
 	go test ./...
+
+release-control-test:
+	@bash -n scripts/*.sh
+	@./scripts/test-release-controls.sh
 
 policy:
 	go test ./internal/repopolicy/ -count=1
@@ -62,10 +75,31 @@ generated-real-check:
 
 contract: drift-check generated-real-check
 
-check-all: fmt test policy build gitleaks provability contract
+check-all: fmt test policy release-control-test build gitleaks provability contract
 	@git diff --check
 	@git diff --check $(DIFF_BASE)...HEAD
 	@echo 'check-all ok'
+
+release-guard-signing-env:
+	@./scripts/release-guard-signing-env.sh
+
+release-guard-tag-version:
+	@./scripts/release-guard-tag-version.sh
+
+release-guard-tag-ruleset:
+	@./scripts/release-guard-tag-ruleset.sh
+
+release-tag:
+	@./scripts/release-tag.sh
+
+release-push-tag:
+	@./scripts/release-push-tag.sh
+
+release-verify-tag:
+	@./scripts/release-verify-tag.sh
+
+release-verify-remote-tag:
+	@./scripts/release-verify-remote-tag.sh
 
 clean:
 	rm -rf bin
