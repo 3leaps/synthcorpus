@@ -13,12 +13,14 @@ follows
 
 ## 1. Quality gates
 
-- [ ] Confirm all release changes are merged to `main`; fetch and record the
-      intended release commit; and confirm the clean checkout matches it:
+- [ ] In the shell that will perform the release, confirm all release changes
+      are merged to `main`; fetch and record the intended release commit as a
+      read-only value; and confirm the clean checkout matches it:
 
   ```sh
   git fetch origin main
   release_commit="$(git rev-parse origin/main)"
+  readonly release_commit
   printf 'release commit: %s\n' "$release_commit"
   test "$(git rev-parse HEAD)" = "$release_commit"
   test -z "$(git status --porcelain)"
@@ -93,16 +95,18 @@ follows
 - [ ] Confirm the active tag-protection ruleset covers `refs/tags/v*`, blocks
       creation, update, deletion, and non-fast-forward changes, and permits only
       the authorized organization-administrator bypass.
-- [ ] Immediately before signing, fetch `origin/main`, resolve and print the
-      intended release commit again, and confirm the three required hosted
-      checks are green on that exact SHA.
+- [ ] Confirm the three required hosted checks are green on the recorded
+      `release_commit`. Keep the same release shell open through signing; the
+      tag command fails closed if that verified value is unavailable.
 - [ ] As an authorized organization administrator, create and push the signed
       tag through the ruleset bypass:
 
   ```sh
+  test -n "${release_commit:-}"
   git fetch origin main
-  release_commit="$(git rev-parse origin/main)"
-  printf 'release commit: %s\n' "$release_commit"
+  current_main="$(git rev-parse origin/main)"
+  printf 'current main: %s\n' "$current_main"
+  test "$current_main" = "$release_commit"
   git tag -s -m "v0.1.0 — synthetic fixtures with provable boundaries" \
     v0.1.0 "$release_commit"
   git tag -v v0.1.0
