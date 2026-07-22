@@ -22,11 +22,38 @@ dedicated keyring must remain outside every Git worktree.
   on which the release gates and hosted checks passed;
 - `THREELEAPS_SYNTHCORPUS_GPG_HOMEDIR`: the dedicated release-signing keyring;
 - `THREELEAPS_SYNTHCORPUS_GPG_SIGNING_FINGERPRINT`: the full uppercase 40-hex
-  primary GPG fingerprint authorized to sign the Git tag;
+  primary fingerprint that independently authorizes the release identity;
+- `THREELEAPS_SYNTHCORPUS_PGP_KEY_ID`: an exact signing-subkey selector: either
+  its uppercase 16-hex key ID or full uppercase 40-hex fingerprint, followed by
+  `!` so GnuPG cannot silently select a different signing subkey;
 - `THREELEAPS_SYNTHCORPUS_TAGGER_NAME`: the tagger name associated with the
   signing identity;
 - `THREELEAPS_SYNTHCORPUS_TAGGER_EMAIL`: a tagger email present on the signing
   key and verified for the publishing account.
+
+To discover the primary and signing-subkey identifiers from the dedicated
+keyring without exporting key material, run:
+
+```sh
+GNUPGHOME="$THREELEAPS_SYNTHCORPUS_GPG_HOMEDIR" \
+  gpg --keyid-format long \
+      --with-subkey-fingerprint \
+      --list-secret-keys
+```
+
+Use the full fingerprint printed beneath the `sec` record as the independent
+primary authorization value. Choose an unexpired `ssb` record carrying `[S]`,
+then use either its long key ID from the `ssb` line or its full fingerprint from
+the following line, with `!` appended as the exact selector. For example:
+
+```sh
+export THREELEAPS_SYNTHCORPUS_GPG_SIGNING_FINGERPRINT='<40-hex-primary-fingerprint>'
+export THREELEAPS_SYNTHCORPUS_PGP_KEY_ID='<16-or-40-hex-signing-subkey-id>!'
+```
+
+The guard requires the selected signing subkey to belong to the independently
+authorized primary and rejects disabled, expired, revoked, invalid, or
+non-signing key records.
 
 Git release tags carry GPG signatures. This no-asset release creates no
 minisign signature or uploaded key; minisign material is not part of this
@@ -141,8 +168,8 @@ ceremony.
       environment and live ruleset, embeds the ruleset-policy fingerprint,
       explicitly tags the check-verified commit, and verifies the annotated
       object directly targets that commit with type `commit`, plus the exact
-      signer fingerprint, tagger identity, policy attestation, and peeled
-      target:
+      signing-subkey fingerprint and its primary-key relationship, tagger
+      identity, policy attestation, and peeled target:
 
   ```sh
   make release-tag
