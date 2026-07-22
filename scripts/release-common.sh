@@ -87,10 +87,18 @@ release_configure_gpg() {
 	export GNUPGHOME="${canonical_home}"
 }
 
+release_validate_pgp_key_id() {
+	release_require_env THREELEAPS_SYNTHCORPUS_PGP_KEY_ID
+	if ! [[ "${THREELEAPS_SYNTHCORPUS_PGP_KEY_ID}" =~ ^([0-9A-F]{16}|[0-9A-F]{40})!$ ]]; then
+		echo "error: THREELEAPS_SYNTHCORPUS_PGP_KEY_ID must be an uppercase 16-hex key ID or 40-hex fingerprint followed by !" >&2
+		return 1
+	fi
+}
+
 release_validate_fingerprint() {
 	release_require_env THREELEAPS_SYNTHCORPUS_GPG_SIGNING_FINGERPRINT
 	if ! [[ "${THREELEAPS_SYNTHCORPUS_GPG_SIGNING_FINGERPRINT}" =~ ^[0-9A-F]{40}$ ]]; then
-		echo "error: THREELEAPS_SYNTHCORPUS_GPG_SIGNING_FINGERPRINT must be a full uppercase 40-hex fingerprint" >&2
+		echo "error: THREELEAPS_SYNTHCORPUS_GPG_SIGNING_FINGERPRINT must be a full uppercase 40-hex primary fingerprint" >&2
 		return 1
 	fi
 }
@@ -112,12 +120,106 @@ release_validate_tagger_env() {
 	esac
 }
 
-release_primary_fingerprints() {
+release_primary_records() {
 	local listing="$1"
 	printf '%s\n' "${listing}" | awk -F: '
-        $1 == "sec" || $1 == "pub" { want_fingerprint = 1; next }
-        want_fingerprint && $1 == "fpr" { print $10; want_fingerprint = 0 }
+        $1 == "sec" || $1 == "pub" {
+            want_fingerprint = 1
+            validity = $2
+            expires = $7
+            capabilities = $12
+            next
+        }
+        want_fingerprint && $1 == "fpr" {
+            print $10 "|" capabilities "|" validity "|" expires
+            want_fingerprint = 0
+        }
     '
+}
+
+release_matching_subkey_records() {
+	local listing="$1"
+	local selector="${THREELEAPS_SYNTHCORPUS_PGP_KEY_ID%!}"
+	printf '%s\n' "${listing}" | awk -F: -v selector="${selector}" '
+        $1 == "sub" || $1 == "ssb" {
+            want_fingerprint = 1
+            validity = $2
+            key_id = $5
+            expires = $7
+            capabilities = $12
+            next
+        }
+        want_fingerprint && $1 == "fpr" {
+            fingerprint = $10
+            if (fingerprint == selector || key_id == selector) {
+                print fingerprint "|" capabilities "|" validity "|" expires
+            }
+            want_fingerprint = 0
+        }
+    '
+}
+
+release_resolve_signing_subkey() {
+	local listing="$1"
+	local primary_records primary_count matching_records matching_count
+	primary_records="$(release_primary_records "${listing}")"
+	primary_count="$(printf '%s\n' "${primary_records}" | awk 'NF { count++ } END { print count + 0 }')"
+	if [ "${primary_count}" -ne 1 ]; then
+		echo "error: signing subkey selector does not resolve beneath exactly one primary key" >&2
+		return 1
+	fi
+
+	local primary_fingerprint primary_capabilities primary_validity primary_expires
+	IFS='|' read -r primary_fingerprint primary_capabilities primary_validity primary_expires <<<"${primary_records}"
+	if [ "${primary_fingerprint}" != "${THREELEAPS_SYNTHCORPUS_GPG_SIGNING_FINGERPRINT}" ]; then
+		echo "error: selected signing subkey does not belong to the independently authorized primary fingerprint" >&2
+		return 1
+	fi
+	release_validate_key_state "authorized primary key" \
+		"${primary_capabilities}" "${primary_validity}" "${primary_expires}" || return 1
+
+	matching_records="$(release_matching_subkey_records "${listing}")"
+	matching_count="$(printf '%s\n' "${matching_records}" | awk 'NF { count++ } END { print count + 0 }')"
+	if [ "${matching_count}" -ne 1 ]; then
+		echo "error: signing subkey selector does not identify exactly one subkey" >&2
+		return 1
+	fi
+
+	local subkey_fingerprint capabilities validity expires
+	IFS='|' read -r subkey_fingerprint capabilities validity expires <<<"${matching_records}"
+	if ! [[ "${capabilities}" =~ [sS] ]]; then
+		echo "error: selected GPG subkey is not signing-capable" >&2
+		return 1
+	fi
+	release_validate_key_state "selected GPG signing subkey" \
+		"${capabilities}" "${validity}" "${expires}" || return 1
+
+	printf '%s %s\n' "${subkey_fingerprint}" "${primary_fingerprint}"
+}
+
+release_validate_key_state() {
+	local label="$1"
+	local capabilities="$2"
+	local validity="$3"
+	local expires="$4"
+	if [[ "${capabilities}" == *D* ]]; then
+		echo "error: ${label} is disabled" >&2
+		return 1
+	fi
+	case "${validity}" in
+		r | e | d | i)
+			echo "error: ${label} is revoked, expired, disabled, or invalid" >&2
+			return 1
+			;;
+	esac
+	if [ -n "${expires}" ] && [ "${expires}" != "0" ]; then
+		local now
+		now="$(date +%s)"
+		if ! [[ "${expires}" =~ ^[0-9]+$ ]] || [ "${expires}" -le "${now}" ]; then
+			echo "error: ${label} is expired or has malformed expiry metadata" >&2
+			return 1
+		fi
+	fi
 }
 
 release_key_uid_emails() {
@@ -128,24 +230,19 @@ release_key_uid_emails() {
 }
 
 release_validate_verification_env() {
-	release_assert_tag_version
-	release_validate_release_commit
-	release_configure_gpg
-	release_validate_fingerprint
-	release_validate_tagger_env
-	release_require_command gpg
+	release_assert_tag_version || return 1
+	release_validate_release_commit || return 1
+	release_configure_gpg || return 1
+	release_validate_pgp_key_id || return 1
+	release_validate_fingerprint || return 1
+	release_validate_tagger_env || return 1
+	release_require_command gpg || return 1
 
-	local public_listing primary_fingerprints primary_count
+	local public_listing
 	public_listing="$(GNUPGHOME="${GNUPGHOME}" gpg --batch --with-colons \
-		--fingerprint --list-keys \
-		"${THREELEAPS_SYNTHCORPUS_GPG_SIGNING_FINGERPRINT}" 2>/dev/null || true)"
-	primary_fingerprints="$(release_primary_fingerprints "${public_listing}")"
-	primary_count="$(printf '%s\n' "${primary_fingerprints}" | awk 'NF { count++ } END { print count + 0 }')"
-	if [ "${primary_count}" -ne 1 ] ||
-		[ "${primary_fingerprints}" != "${THREELEAPS_SYNTHCORPUS_GPG_SIGNING_FINGERPRINT}" ]; then
-		echo "error: signing fingerprint does not select exactly one primary public key in the release keyring" >&2
-		return 1
-	fi
+		--fingerprint --with-subkey-fingerprint --list-keys \
+		"${THREELEAPS_SYNTHCORPUS_PGP_KEY_ID}" 2>/dev/null || true)"
+	release_resolve_signing_subkey "${public_listing}" >/dev/null || return 1
 
 	local uid_emails
 	uid_emails="$(release_key_uid_emails "${public_listing}")"
@@ -156,19 +253,13 @@ release_validate_verification_env() {
 }
 
 release_validate_signing_env() {
-	release_validate_verification_env
+	release_validate_verification_env || return 1
 
-	local secret_listing primary_fingerprints primary_count
+	local secret_listing
 	secret_listing="$(GNUPGHOME="${GNUPGHOME}" gpg --batch --with-colons \
-		--fingerprint --list-secret-keys \
-		"${THREELEAPS_SYNTHCORPUS_GPG_SIGNING_FINGERPRINT}" 2>/dev/null || true)"
-	primary_fingerprints="$(release_primary_fingerprints "${secret_listing}")"
-	primary_count="$(printf '%s\n' "${primary_fingerprints}" | awk 'NF { count++ } END { print count + 0 }')"
-	if [ "${primary_count}" -ne 1 ] ||
-		[ "${primary_fingerprints}" != "${THREELEAPS_SYNTHCORPUS_GPG_SIGNING_FINGERPRINT}" ]; then
-		echo "error: signing fingerprint does not select exactly one primary secret key in the release keyring" >&2
-		return 1
-	fi
+		--fingerprint --with-subkey-fingerprint --list-secret-keys \
+		"${THREELEAPS_SYNTHCORPUS_PGP_KEY_ID}" 2>/dev/null || true)"
+	release_resolve_signing_subkey "${secret_listing}" >/dev/null || return 1
 }
 
 release_setup_gpg_tty() {
@@ -237,7 +328,7 @@ release_expected_policy_attestation() {
 	"${release_common_dir}/release-guard-tag-ruleset.sh" --expected-attestation
 }
 
-release_validsig_primary_fingerprint() {
+release_validsig_fingerprints() {
 	local verification="$1"
 	local validsig count
 	validsig="$(sed -n 's/^\[GNUPG:\] VALIDSIG //p' <<<"${verification}")"
@@ -245,7 +336,7 @@ release_validsig_primary_fingerprint() {
 	if [ "${count}" -ne 1 ]; then
 		return 1
 	fi
-	awk '{ if (NF >= 10) print $10; else print $1 }' <<<"${validsig}"
+	awk '{ if (NF >= 10) print $1, $10; else print $1, $1 }' <<<"${validsig}"
 }
 
 release_verify_local_tag() {
@@ -304,7 +395,16 @@ release_verify_local_tag() {
 		return 1
 	fi
 
-	local verification primary_fingerprint
+	local public_listing expected_fingerprints expected_subkey_fingerprint expected_primary_fingerprint
+	public_listing="$(GNUPGHOME="${GNUPGHOME}" gpg --batch --with-colons \
+		--fingerprint --with-subkey-fingerprint --list-keys \
+		"${THREELEAPS_SYNTHCORPUS_PGP_KEY_ID}" 2>/dev/null || true)"
+	if ! expected_fingerprints="$(release_resolve_signing_subkey "${public_listing}")"; then
+		return 1
+	fi
+	read -r expected_subkey_fingerprint expected_primary_fingerprint <<<"${expected_fingerprints}"
+
+	local verification actual_fingerprints actual_subkey_fingerprint actual_primary_fingerprint
 	if ! verification="$(GNUPGHOME="${GNUPGHOME}" git verify-tag --raw "${tag}" 2>&1)"; then
 		printf '%s\n' "${verification}" >&2
 		echo "error: tag signature verification failed" >&2
@@ -314,9 +414,15 @@ release_verify_local_tag() {
 		echo "error: tag signature or signing key is expired or revoked" >&2
 		return 1
 	fi
-	primary_fingerprint="$(release_validsig_primary_fingerprint "${verification}" || true)"
-	if [ "${primary_fingerprint}" != "${THREELEAPS_SYNTHCORPUS_GPG_SIGNING_FINGERPRINT}" ]; then
-		echo "error: tag signature was not made by the required primary signing fingerprint" >&2
+	actual_fingerprints="$(release_validsig_fingerprints "${verification}" || true)"
+	read -r actual_subkey_fingerprint actual_primary_fingerprint <<<"${actual_fingerprints}"
+	if [ "${actual_subkey_fingerprint}" != "${expected_subkey_fingerprint}" ]; then
+		echo "error: tag signature was not made by the selected exact signing subkey" >&2
+		return 1
+	fi
+	if [ "${actual_primary_fingerprint}" != "${THREELEAPS_SYNTHCORPUS_GPG_SIGNING_FINGERPRINT}" ] ||
+		[ "${expected_primary_fingerprint}" != "${THREELEAPS_SYNTHCORPUS_GPG_SIGNING_FINGERPRINT}" ]; then
+		echo "error: tag signature does not chain to the independently authorized primary fingerprint" >&2
 		return 1
 	fi
 

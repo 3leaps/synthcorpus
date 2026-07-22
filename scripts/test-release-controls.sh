@@ -56,34 +56,73 @@ first_commit="$(git -C "${repo}" rev-parse HEAD)"
 git -C "${repo}" remote add origin "${remote}"
 git -C "${repo}" push -q -u origin main
 
-readonly expected_fingerprint="0123456789ABCDEF0123456789ABCDEF01234567"
+readonly expected_primary_fingerprint="0123456789ABCDEF0123456789ABCDEF01234567"
+readonly expected_subkey_id="2F9F89F7673ECF7F"
+readonly expected_subkey_fingerprint="111111111111111111111111${expected_subkey_id}"
+readonly alternate_subkey_id="77BF08F29CE81D9B"
+readonly alternate_subkey_fingerprint="222222222222222222222222${alternate_subkey_id}"
+readonly encryption_subkey_id="280A9D47CB54F85D"
+readonly encryption_subkey_fingerprint="333333333333333333333333${encryption_subkey_id}"
+readonly expired_subkey_id="AAAAAAAAAAAAAAAA"
+readonly expired_subkey_fingerprint="444444444444444444444444${expired_subkey_id}"
+readonly other_primary_fingerprint="FEDCBA9876543210FEDCBA9876543210FEDCBA98"
+readonly other_subkey_id="BBBBBBBBBBBBBBBB"
+readonly other_subkey_fingerprint="555555555555555555555555${other_subkey_id}"
 readonly expected_name="3 Leaps Release"
 readonly expected_email="release@example.invalid"
 
 export THREELEAPS_SYNTHCORPUS_RELEASE_TAG="v0.1.0"
 export THREELEAPS_SYNTHCORPUS_RELEASE_COMMIT="${first_commit}"
 export THREELEAPS_SYNTHCORPUS_GPG_HOMEDIR="${gpg_home}"
-export THREELEAPS_SYNTHCORPUS_GPG_SIGNING_FINGERPRINT="${expected_fingerprint}"
+export THREELEAPS_SYNTHCORPUS_GPG_SIGNING_FINGERPRINT="${expected_primary_fingerprint}"
+export THREELEAPS_SYNTHCORPUS_PGP_KEY_ID="${expected_subkey_id}!"
 export THREELEAPS_SYNTHCORPUS_TAGGER_NAME="${expected_name}"
 export THREELEAPS_SYNTHCORPUS_TAGGER_EMAIL="${expected_email}"
 
 real_git="$(command -v git)"
 verify_mode="good"
+listing_mode="good"
 
 gpg() {
+	local primary_type subkey_type
+	primary_type="pub"
+	subkey_type="sub"
 	case " $* " in
 		*' --list-secret-keys '*)
-			printf 'sec:u:255:22:0123456789ABCDEF:0:0:::::scESC:::\n'
-			printf 'fpr:::::::::%s:\n' "${expected_fingerprint}"
-			printf 'uid:u::::0::HASH::3 Leaps Release <%s>::::::::::0:\n' "${expected_email}"
+			primary_type="sec"
+			subkey_type="ssb"
 			;;
-		*' --list-keys '*)
-			printf 'pub:u:255:22:0123456789ABCDEF:0:0:::::scESC:::\n'
-			printf 'fpr:::::::::%s:\n' "${expected_fingerprint}"
-			printf 'uid:u::::0::HASH::3 Leaps Release <%s>::::::::::0:\n' "${expected_email}"
-			;;
+		*' --list-keys '*) ;;
 		*) return 1 ;;
 	esac
+	local primary_fingerprint primary_capabilities selected_subkey_capabilities
+	primary_fingerprint="${expected_primary_fingerprint}"
+	primary_capabilities="scESC"
+	selected_subkey_capabilities="s"
+	case "${listing_mode}" in
+		other-primary)
+			primary_fingerprint="${other_primary_fingerprint}"
+			;;
+		disabled-primary) primary_capabilities="scESCD" ;;
+		disabled-subkey) selected_subkey_capabilities="sD" ;;
+	esac
+	printf '%s:u:255:22:0123456789ABCDEF:0:0:::::%s:::\n' "${primary_type}" "${primary_capabilities}"
+	printf 'fpr:::::::::%s:\n' "${primary_fingerprint}"
+	printf 'uid:u::::0::HASH::3 Leaps Release <%s>::::::::::0:\n' "${expected_email}"
+	if [ "${listing_mode}" = "other-primary" ]; then
+		printf '%s:u:255:22:%s:0:0:::::s:::\n' "${subkey_type}" "${other_subkey_id}"
+		printf 'fpr:::::::::%s:\n' "${other_subkey_fingerprint}"
+		return 0
+	fi
+	printf '%s:u:255:22:%s:0:0:::::%s:::\n' \
+		"${subkey_type}" "${expected_subkey_id}" "${selected_subkey_capabilities}"
+	printf 'fpr:::::::::%s:\n' "${expected_subkey_fingerprint}"
+	printf '%s:u:255:22:%s:0:0:::::s:::\n' "${subkey_type}" "${alternate_subkey_id}"
+	printf 'fpr:::::::::%s:\n' "${alternate_subkey_fingerprint}"
+	printf '%s:u:255:22:%s:0:0:::::e:::\n' "${subkey_type}" "${encryption_subkey_id}"
+	printf 'fpr:::::::::%s:\n' "${encryption_subkey_fingerprint}"
+	printf '%s:e:255:22:%s:0:1:::::s:::\n' "${subkey_type}" "${expired_subkey_id}"
+	printf 'fpr:::::::::%s:\n' "${expired_subkey_fingerprint}"
 }
 
 git() {
@@ -91,19 +130,30 @@ git() {
 		case "${verify_mode}" in
 			good)
 				printf '[GNUPG:] VALIDSIG %s 2026-07-22 1784736000 0 4 0 22 10 00 %s\n' \
-					"${expected_fingerprint}" "${expected_fingerprint}"
+					"${expected_subkey_fingerprint}" "${expected_primary_fingerprint}"
 				return 0
 				;;
-			wrong-signer)
+			wrong-subkey)
 				printf '[GNUPG:] VALIDSIG %s 2026-07-22 1784736000 0 4 0 22 10 00 %s\n' \
 					"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" \
+					"${expected_primary_fingerprint}"
+				return 0
+				;;
+			wrong-primary)
+				printf '[GNUPG:] VALIDSIG %s 2026-07-22 1784736000 0 4 0 22 10 00 %s\n' \
+					"${expected_subkey_fingerprint}" \
 					"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+				return 0
+				;;
+			other-primary)
+				printf '[GNUPG:] VALIDSIG %s 2026-07-22 1784736000 0 4 0 22 10 00 %s\n' \
+					"${other_subkey_fingerprint}" "${other_primary_fingerprint}"
 				return 0
 				;;
 			expired)
 				printf '[GNUPG:] EXPKEYSIG 0123456789ABCDEF expired\n'
 				printf '[GNUPG:] VALIDSIG %s 2026-07-22 1784736000 0 4 0 22 10 00 %s\n' \
-					"${expected_fingerprint}" "${expected_fingerprint}"
+					"${expected_subkey_fingerprint}" "${expected_primary_fingerprint}"
 				return 0
 				;;
 			invalid) return 1 ;;
@@ -132,6 +182,40 @@ expect_failure "non-commit object rejected as release SHA" release_validate_rele
 THREELEAPS_SYNTHCORPUS_RELEASE_COMMIT="${saved_commit}"
 
 expect_success "valid OOB signing environment accepted" release_validate_signing_env
+saved_primary_fingerprint="${THREELEAPS_SYNTHCORPUS_GPG_SIGNING_FINGERPRINT}"
+unset THREELEAPS_SYNTHCORPUS_GPG_SIGNING_FINGERPRINT
+expect_failure "absent authorized primary fingerprint rejected" release_validate_verification_env
+THREELEAPS_SYNTHCORPUS_GPG_SIGNING_FINGERPRINT="0123456789ABCDEF"
+expect_failure "abbreviated authorized primary fingerprint rejected" release_validate_verification_env
+THREELEAPS_SYNTHCORPUS_GPG_SIGNING_FINGERPRINT="${saved_primary_fingerprint}"
+saved_key_id="${THREELEAPS_SYNTHCORPUS_PGP_KEY_ID}"
+unset THREELEAPS_SYNTHCORPUS_PGP_KEY_ID
+expect_failure "absent signing subkey selector rejected" release_validate_verification_env
+THREELEAPS_SYNTHCORPUS_PGP_KEY_ID="${expected_subkey_id}"
+expect_failure "signing subkey selector without exact-selection bang rejected" release_validate_verification_env
+THREELEAPS_SYNTHCORPUS_PGP_KEY_ID="${expected_primary_fingerprint}!"
+expect_failure "primary key rejected as signing subkey selector" release_validate_verification_env
+THREELEAPS_SYNTHCORPUS_PGP_KEY_ID="${encryption_subkey_id}!"
+expect_failure "encryption-only subkey rejected for signing" release_validate_verification_env
+THREELEAPS_SYNTHCORPUS_PGP_KEY_ID="${expired_subkey_id}!"
+expect_failure "expired signing subkey rejected" release_validate_verification_env
+THREELEAPS_SYNTHCORPUS_PGP_KEY_ID="${alternate_subkey_fingerprint}!"
+expect_success "alternate full signing-subkey fingerprint accepted" release_validate_signing_env
+THREELEAPS_SYNTHCORPUS_PGP_KEY_ID="${saved_key_id}"
+listing_mode="disabled-primary"
+expect_failure "current-format disabled primary marker rejected" release_validate_verification_env
+listing_mode="disabled-subkey"
+expect_failure "current-format disabled signing-subkey marker rejected" release_validate_verification_env
+listing_mode="other-primary"
+THREELEAPS_SYNTHCORPUS_PGP_KEY_ID="${other_subkey_id}!"
+expect_failure "same-UID subkey under non-authorized primary rejected in public validation" \
+	release_validate_verification_env
+other_secret_listing="$(gpg --batch --with-colons --fingerprint \
+	--with-subkey-fingerprint --list-secret-keys "${THREELEAPS_SYNTHCORPUS_PGP_KEY_ID}")"
+expect_failure "same-UID subkey under non-authorized primary rejected in secret resolution" \
+	release_resolve_signing_subkey "${other_secret_listing}"
+listing_mode="good"
+THREELEAPS_SYNTHCORPUS_PGP_KEY_ID="${saved_key_id}"
 unset THREELEAPS_SYNTHCORPUS_TAGGER_NAME
 expect_failure "absent tagger name rejected" release_validate_verification_env
 export THREELEAPS_SYNTHCORPUS_TAGGER_NAME="${expected_name}"
@@ -220,13 +304,23 @@ write_tag_object() {
 write_tag_object "${second_commit}" good "${expected_name}" "${expected_email}" signed
 verify_mode=good
 expect_success "fully bound signed tag accepted" release_verify_local_tag
+listing_mode="other-primary"
+THREELEAPS_SYNTHCORPUS_PGP_KEY_ID="${other_subkey_id}!"
+verify_mode=other-primary
+expect_failure "same-UID subkey under non-authorized primary rejected during tag verification" \
+	release_verify_local_tag
+listing_mode="good"
+THREELEAPS_SYNTHCORPUS_PGP_KEY_ID="${saved_key_id}"
+verify_mode=good
 write_tag_object "${second_commit}" good "${expected_name}" "${expected_email}" unsigned
 inner_tag="$(command git rev-parse "refs/tags/${THREELEAPS_SYNTHCORPUS_RELEASE_TAG}")"
 write_tag_object "${inner_tag}" good "${expected_name}" "${expected_email}" signed tag
 expect_failure "indirect nested annotated tag target rejected" release_verify_local_tag
 write_tag_object "${second_commit}" good "${expected_name}" "${expected_email}" signed
-verify_mode=wrong-signer
-expect_failure "wrong signer rejected" release_verify_local_tag
+verify_mode=wrong-subkey
+expect_failure "wrong signing subkey rejected" release_verify_local_tag
+verify_mode=wrong-primary
+expect_failure "wrong primary-key relationship rejected" release_verify_local_tag
 verify_mode=expired
 expect_failure "expired signer rejected" release_verify_local_tag
 verify_mode=invalid
