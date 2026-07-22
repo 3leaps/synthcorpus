@@ -1,16 +1,31 @@
 # Release Checklist
 
-synthcorpus releases are annotated Git tags plus GitHub release notes. The
-repository does not publish a prebuilt generator binary, package-manager
-artifact, separately attached corpus bundle, signature, key, checksum manifest,
-or provenance asset. GitHub's automatic source archives are expected; they
-contain the committed repository, including the committed-synthetic corpus,
-and no generated-real material. This intentionally follows
+synthcorpus releases are GPG-signed Git tags plus GitHub release notes. Version
+tag refs are protected by an active repository ruleset; an authorized
+organization administrator creates and pushes each release tag through that
+ruleset. The repository does not publish a prebuilt generator binary,
+package-manager artifact, separately attached corpus bundle, artifact signature
+or key, checksum manifest, or provenance asset. GitHub's automatic source
+archives are expected; they contain the committed repository, including the
+committed-synthetic corpus, and no generated-real material. This intentionally
+follows
 [`docs/decisions/ADR-0002-no-publish-no-worktree-generator.md`](docs/decisions/ADR-0002-no-publish-no-worktree-generator.md).
 
 ## 1. Quality gates
 
-- [ ] Confirm all release changes are merged to `main` and the worktree is clean.
+- [ ] In the shell that will perform the release, confirm all release changes
+      are merged to `main`; fetch and record the intended release commit as a
+      read-only value; and confirm the clean checkout matches it:
+
+  ```sh
+  git fetch origin main
+  release_commit="$(git rev-parse origin/main)"
+  readonly release_commit
+  printf 'release commit: %s\n' "$release_commit"
+  test "$(git rev-parse HEAD)" = "$release_commit"
+  test -z "$(git status --porcelain)"
+  ```
+
 - [ ] Run the complete local gate with the pinned consumer binary:
 
   ```sh
@@ -18,7 +33,7 @@ and no generated-real material. This intentionally follows
   ```
 
 - [ ] Confirm the required `basic-ubuntu`, `basic-macos`, and `gitleaks` checks
-      pass on the release commit.
+      pass on the recorded release commit.
 
 ## 2. Release identity and documentation
 
@@ -35,8 +50,8 @@ and no generated-real material. This intentionally follows
   - [ ] the release section in `CHANGELOG.md`;
   - [ ] the current entry in `RELEASE_NOTES.md`;
   - [ ] `docs/releases/v<version>.md`.
-- [ ] At tag time, replace every `2026-NN-NN` placeholder and confirm all three
-      release surfaces use the actual calendar date on which the tag is created.
+- [ ] Confirm no `2026-NN-NN` placeholder remains and all three release surfaces
+      use the actual calendar date on which the tag is created.
 - [ ] Confirm every bracketed release version in `CHANGELOG.md` has a footer
       link definition and `[Unreleased]` compares the release tag to `HEAD`.
 - [ ] Confirm every release surface uses capability-only, public-reader wording
@@ -63,8 +78,8 @@ and no generated-real material. This intentionally follows
   Expected output: empty.
 
 - [ ] Confirm no workflow publishes a prebuilt generator binary,
-      package-manager artifact, separately attached corpus bundle, signature,
-      key, checksum manifest, or provenance asset.
+      package-manager artifact, separately attached corpus bundle, artifact
+      signature or key, checksum manifest, or provenance asset.
 - [ ] Confirm no files will be uploaded to the release. GitHub's automatic
       source archives are expected and contain no generated-real material.
 
@@ -77,10 +92,25 @@ and no generated-real material. This intentionally follows
   test "v${release_version}" = "v0.1.0"
   ```
 
-- [ ] Create and push the annotated tag:
+- [ ] Confirm the active tag-protection ruleset covers `refs/tags/v*`, blocks
+      creation, update, deletion, and non-fast-forward changes, and permits only
+      the authorized organization-administrator bypass.
+- [ ] Confirm the three required hosted checks are green on the recorded
+      `release_commit`. Keep the same release shell open through signing; the
+      tag command fails closed if that verified value is unavailable.
+- [ ] As an authorized organization administrator, create and push the signed
+      tag through the ruleset bypass:
 
   ```sh
-  git tag -a v0.1.0 -m "v0.1.0 — synthetic fixtures with provable boundaries"
+  test -n "${release_commit:-}"
+  git fetch origin main
+  current_main="$(git rev-parse origin/main)"
+  printf 'current main: %s\n' "$current_main"
+  test "$current_main" = "$release_commit"
+  git tag -s -m "v0.1.0 — synthetic fixtures with provable boundaries" \
+    v0.1.0 "$release_commit"
+  git tag -v v0.1.0
+  test "$(git rev-parse 'v0.1.0^{}')" = "$release_commit"
   git push origin v0.1.0
   ```
 

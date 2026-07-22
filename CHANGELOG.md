@@ -7,7 +7,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
-## [0.1.0] - 2026-NN-NN
+## [0.1.0] - 2026-07-22
 
 **Synthetic Security Fixtures with Provable Boundaries**
 
@@ -24,12 +24,18 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - **Cross-platform guardrail CI.** Ubuntu and macOS run the complete default Go
   lane and prove guardrail tests execute without skips; a separate redacted
   Gitleaks lane scans the tree and runs hermetic scanner canaries.
-- **Release identity and no-publish posture.** The repository and generator
-  report version `0.1.0`; releases are tags plus notes. No prebuilt generator
-  binary, package-manager artifact, separately attached corpus bundle,
-  signature, key, checksum manifest, or provenance asset is published. GitHub's
-  automatic source archives contain only repository content and therefore no
-  generated-real material.
+- **Declared platform coverage.** A machine-checked five-platform matrix
+  separates required coverage from observed execution. Only active lanes count;
+  blocked, deferred, and excluded states require a missing capability, reason,
+  and lift condition instead of silent skips or emulation.
+- **Release identity and structural no-publish enforcement.** The repository
+  and generator report version `0.1.0`; workflow policy rejects capabilities
+  outside its exact allowed set, and repository policy forbids defined packaging
+  and release-automation surfaces. Releases are signed tags plus notes, with no
+  prebuilt generator binary, package-manager artifact, separately attached
+  corpus bundle, artifact signature or key, checksum manifest, or provenance
+  asset. GitHub's automatic source archives contain only repository content and
+  therefore no generated-real material.
 
 ### Security
 
