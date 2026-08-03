@@ -2,6 +2,7 @@
 .PHONY: release-control-test release-guard-signing-env release-guard-tag-version release-guard-tag-ruleset release-tag release-push-tag release-verify-tag release-verify-remote-tag
 
 BINARY_NAME := synthcorpus-gen
+LEX_BINARY_NAME := synthcorpus-lexgen
 BINARY_EXT :=
 ifeq ($(OS),Windows_NT)
 	BINARY_EXT := .exe
@@ -18,7 +19,7 @@ help:
 		'  fmt               Format Go sources' \
 		'  test              Pure-Go unit tests (no gpg/minisign/ssh-keygen/gitleaks)' \
 		'  policy            CI platform + no-publish/workflow policy tests' \
-		'  build             Build cmd/synthcorpus-gen for the host' \
+		'  build             Build both generators for the host' \
 		'  build-linux-arm64 Static linux/arm64 binary (ceremony VM delivery)' \
 		'  gitleaks          Scanner gate: CLI detect + hermetic canary tests (needs gitleaks)' \
 		'  provability       Helper-backed negative-crypto proofs (needs gpg/minisign/ssh-keygen)' \
@@ -52,6 +53,7 @@ policy:
 build:
 	mkdir -p bin
 	CGO_ENABLED=0 go build -trimpath -o bin/$(BINARY_NAME)$(BINARY_EXT) ./cmd/synthcorpus-gen
+	CGO_ENABLED=0 go build -trimpath -o bin/$(LEX_BINARY_NAME)$(BINARY_EXT) ./cmd/synthcorpus-lexgen
 
 build-linux-arm64:
 	mkdir -p bin

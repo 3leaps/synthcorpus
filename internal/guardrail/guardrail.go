@@ -22,15 +22,58 @@ const (
 	maxMarkerBytes = 4096
 )
 
+// Marker is the ownership record a generator leaves in its output root.
+//
+// Kind is the authorization attribute: --force checks it, and nothing else.
+// Tool is provenance for a human reading the directory — it is deliberately
+// NOT consulted when deciding whether a root may be replaced. Isolating two
+// generators means giving each its own MarkerSpec, never sharing a spec and
+// distinguishing by Tool; a shared marker is already a shared key, and adding
+// a second field to the check would not change that.
 type Marker struct {
 	Kind string `json:"kind"`
 	Tool string `json:"tool"`
 }
 
+// MarkerSpec names one ownership marker: the file a generator drops in its
+// output root, and the kind recorded inside it.
+//
+// Each generator owns a distinct spec. --force deletes a directory recursively
+// on the strength of this marker alone, so a shared marker would let any
+// generator wipe any other generator's corpus; and a corpus holding no key
+// material must not be labelled with the marker that locates key-bearing roots.
+//
+// A new writer gets a new spec. Do not overload an existing one and rely on
+// Marker.Tool to tell them apart — Tool is not an authorization attribute.
+type MarkerSpec struct {
+	Name string
+	Kind string
+}
+
+// MarkerGeneratedReal owns roots holding real throwaway key material.
+var MarkerGeneratedReal = MarkerSpec{Name: MarkerName, Kind: MarkerKind}
+
+// MarkerLexicalCorpus owns roots holding generated lexical corpora. These
+// contain no key material.
+var MarkerLexicalCorpus = MarkerSpec{
+	Name: ".synthcorpus-lexical-corpus.json",
+	Kind: "synthcorpus-lexical-corpus",
+}
+
+// defaultSubject names what the guard is protecting when a caller does not
+// say. It appears in refusal messages.
+const defaultSubject = "real key material"
+
 // ResolveOutputPath returns the canonical absolute path for out after
 // symlink canonicalize and git/worktree refusal. It does not create or
 // delete anything — used to plan a final publish target before staging.
 func ResolveOutputPath(out string) (string, error) {
+	return ResolveOutputPathFor(out, defaultSubject)
+}
+
+// ResolveOutputPathFor is ResolveOutputPath with a caller-supplied subject for
+// refusal messages. Every guard is identical; only the wording differs.
+func ResolveOutputPathFor(out, subject string) (string, error) {
 	if strings.TrimSpace(out) == "" {
 		return "", errors.New("output path is required")
 	}
@@ -68,7 +111,7 @@ func ResolveOutputPath(out string) (string, error) {
 	if err := rejectSymlinksInPath(ancestor); err != nil {
 		return "", err
 	}
-	if err := rejectGitWorktree(ancestor); err != nil {
+	if err := rejectGitWorktree(ancestor, subject); err != nil {
 		return "", err
 	}
 
@@ -90,11 +133,23 @@ func ResolveOutputPath(out string) (string, error) {
 // CheckOwnedMarker verifies a root carries a bounded regular-file ownership
 // marker. Used for --force publish without deleting the prior corpus yet.
 func CheckOwnedMarker(root string) error {
-	return requireOwnedMarker(root)
+	return requireOwnedMarker(root, MarkerGeneratedReal)
+}
+
+// CheckOwnedMarkerFor verifies a root is owned by the given marker spec.
+func CheckOwnedMarkerFor(root string, spec MarkerSpec) error {
+	return requireOwnedMarker(root, spec)
 }
 
 func PrepareOutputRoot(out string, force bool) (string, error) {
-	abs, err := ResolveOutputPath(out)
+	return PrepareOutputRootFor(out, force, defaultSubject, MarkerGeneratedReal)
+}
+
+// PrepareOutputRootFor is PrepareOutputRoot with a caller-supplied subject for
+// refusal messages and the marker spec that scopes --force. Only a root owned
+// by that same spec may be replaced.
+func PrepareOutputRootFor(out string, force bool, subject string, spec MarkerSpec) (string, error) {
+	abs, err := ResolveOutputPathFor(out, subject)
 	if err != nil {
 		return "", err
 	}
@@ -106,7 +161,7 @@ func PrepareOutputRoot(out string, force bool) (string, error) {
 	// Re-stat: exists means the full abs path exists (suffix empty).
 	if exists {
 		if force {
-			if err := requireOwnedMarker(abs); err != nil {
+			if err := requireOwnedMarker(abs, spec); err != nil {
 				return "", err
 			}
 			if err := os.RemoveAll(abs); err != nil {
@@ -133,13 +188,18 @@ func PrepareOutputRoot(out string, force bool) (string, error) {
 }
 
 func WriteMarker(root, tool string) error {
-	marker := Marker{Kind: MarkerKind, Tool: tool}
+	return WriteMarkerFor(root, tool, MarkerGeneratedReal)
+}
+
+// WriteMarkerFor stamps a root with the given ownership spec.
+func WriteMarkerFor(root, tool string, spec MarkerSpec) error {
+	marker := Marker{Kind: spec.Kind, Tool: tool}
 	data, err := json.MarshalIndent(marker, "", "  ")
 	if err != nil {
 		return err
 	}
 	data = append(data, '\n')
-	return os.WriteFile(filepath.Join(root, MarkerName), data, SecretPerm)
+	return os.WriteFile(filepath.Join(root, spec.Name), data, SecretPerm)
 }
 
 // canonicalizeOutputPath resolves every existing path component to a real
@@ -254,7 +314,7 @@ func rejectSymlink(path string) error {
 	return nil
 }
 
-func rejectGitWorktree(ancestor string) error {
+func rejectGitWorktree(ancestor, subject string) error {
 	// Git is the authority. A path may be outside a worktree yet still be
 	// inside a git directory (e.g. <repo>/.git/... or a bare repository).
 	// Both predicates must be false before generation is allowed.
@@ -263,7 +323,7 @@ func rejectGitWorktree(ancestor string) error {
 		return err
 	}
 	if insideWorkTree {
-		return fmt.Errorf("refusing to generate real key material inside git worktree: %s", ancestor)
+		return fmt.Errorf("refusing to generate %s inside git worktree: %s", subject, ancestor)
 	}
 
 	insideGitDir, err := gitRevParseBool(ancestor, "--is-inside-git-dir")
@@ -271,7 +331,7 @@ func rejectGitWorktree(ancestor string) error {
 		return err
 	}
 	if insideGitDir {
-		return fmt.Errorf("refusing to generate real key material inside git directory: %s", ancestor)
+		return fmt.Errorf("refusing to generate %s inside git directory: %s", subject, ancestor)
 	}
 	return nil
 }
@@ -336,11 +396,11 @@ func sanitizedGitEnv() []string {
 	return env
 }
 
-func requireOwnedMarker(root string) error {
-	markerPath := filepath.Join(root, MarkerName)
+func requireOwnedMarker(root string, spec MarkerSpec) error {
+	markerPath := filepath.Join(root, spec.Name)
 	info, err := os.Lstat(markerPath)
 	if err != nil {
-		return fmt.Errorf("--force requires synthcorpus ownership marker at %s: %w", markerPath, err)
+		return fmt.Errorf("--force requires a %s ownership marker at %s: %w", spec.Kind, markerPath, err)
 	}
 	if info.Mode()&os.ModeSymlink != 0 {
 		return fmt.Errorf("refusing marker reached through symlink: %s", markerPath)
@@ -373,7 +433,7 @@ func requireOwnedMarker(root string) error {
 	if err := json.Unmarshal(data, &marker); err != nil {
 		return fmt.Errorf("parse synthcorpus ownership marker: %w", err)
 	}
-	if marker.Kind != MarkerKind {
+	if marker.Kind != spec.Kind {
 		return fmt.Errorf("invalid synthcorpus ownership marker kind: %q", marker.Kind)
 	}
 	return nil

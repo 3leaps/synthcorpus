@@ -18,6 +18,8 @@ One-line: Synthetic, scanner-safe security-fixture corpus + throwaway-key genera
 | `docs/coverage-matrix.md` | Per-(kind × class) synthetic vs generated-real-only split |
 | `ci/platforms.json` | Five-platform obligations plus machine-checked observed execution states |
 | `cmd/synthcorpus-gen` | Generated-real mint (dogfooding roots only; never inside git) |
+| `cmd/synthcorpus-lexgen` | Lexical-mutation corpus generator (same never-inside-git rule) |
+| `docs/lexical-matrix.md` | Lexical-mutation matrix v1 — grammar, cells, floors, output planes |
 | `manifests/decernor-pin.json` | Consumer pin for drift-check locate-by-binary |
 | `manifests/decernor-fingerprint-golden.json` | Deterministic committed-synthetic fingerprint contract |
 | `manifests/decernor-generated-real-properties.json` | Property-only generated-real contract (no exact random values) |
