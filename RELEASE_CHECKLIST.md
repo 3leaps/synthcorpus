@@ -85,11 +85,13 @@ ceremony.
 ## 2. Release identity and documentation
 
 - [ ] Confirm `VERSION` contains the intended version without a `v` prefix.
-- [ ] Build the generator and confirm its version matches `VERSION`:
+- [ ] Build the generators and confirm every shipped binary's version matches
+      `VERSION`:
 
   ```sh
   make build
   test "$(./bin/synthcorpus-gen -version)" = "$(tr -d '\n' < VERSION)"
+  test "$(./bin/synthcorpus-lexgen -version)" = "$(tr -d '\n' < VERSION)"
   ```
 
 - [ ] Confirm the release date, headline features, compatibility notes, and

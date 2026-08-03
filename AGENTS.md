@@ -30,6 +30,7 @@ for 3 Leaps detectors (decernor first). Real-shaped, never real.
 
 - `README.md`
 - `docs/coverage-matrix.md` (committed-synthetic vs generated-real-only split)
+- `docs/lexical-matrix.md` when touching the lexical lane
 - `docs/decisions/`
 - `fixtures/README.md` when touching specimens
 - `internal/provability` registry when adding or removing fixtures
@@ -50,7 +51,19 @@ Generator:
 ```sh
 # never run with --out inside a git worktree
 ./bin/synthcorpus-gen --out ~/dev/dogfooding/decernor decernor
+./bin/synthcorpus-lexgen --seed 7312026 --out ~/dev/dogfooding/lexmatrix
 ```
+
+The lexical lane splits its output into a sterile plane (`fixtures.json`,
+`accounting.json` — opaque identifiers and counts only) and a protected plane
+(`manifest.json`, `sources/` — term values and artifacts, which stay on the
+generating host). The split is a handling boundary, not a confidentiality
+control: generation is deterministic from a seed the sterile plane carries, so
+the protected plane is reconstructible. See `docs/lexical-matrix.md`.
+
+The lexical lane carries its own ownership marker
+(`.synthcorpus-lexical-corpus.json`); it holds no key material and must never
+be stamped with the generated-real marker.
 
 The consumer contract locates a pinned decernor binary through an absolute
 `DECERNOR_BIN` or `PATH`; it never guesses a sibling worktree path. Generated-real

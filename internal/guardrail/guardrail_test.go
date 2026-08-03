@@ -316,3 +316,42 @@ func runGit(t *testing.T, dir string, args ...string) {
 		t.Fatalf("git %v failed: %v\n%s", args, err, out)
 	}
 }
+
+// TestForceWillNotCrossMarkerSpecs pins the blast radius of --force: a root
+// stamped by one generator must not be deletable by another. Both generators
+// write into sibling dogfooding paths, so a mistyped --out is the realistic
+// way this gets exercised.
+func TestForceWillNotCrossMarkerSpecs(t *testing.T) {
+	root := t.TempDir()
+	lexical := filepath.Join(root, "lexmatrix")
+
+	if _, err := PrepareOutputRootFor(lexical, false, "a generated lexical corpus", MarkerLexicalCorpus); err != nil {
+		t.Fatalf("prepare lexical root: %v", err)
+	}
+	if err := WriteMarkerFor(lexical, "lexmatrix", MarkerLexicalCorpus); err != nil {
+		t.Fatalf("write lexical marker: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(lexical, "fixtures.json"), []byte("{}\n"), SecretPerm); err != nil {
+		t.Fatalf("seed corpus file: %v", err)
+	}
+
+	// The generated-real generator must refuse to replace it.
+	if _, err := PrepareOutputRoot(lexical, true); err == nil {
+		t.Fatal("--force replaced a root owned by a different generator")
+	}
+	if _, err := os.Stat(filepath.Join(lexical, "fixtures.json")); err != nil {
+		t.Fatalf("refused --force still destroyed the corpus: %v", err)
+	}
+
+	// And symmetrically.
+	keys := filepath.Join(root, "decernor")
+	if _, err := PrepareOutputRoot(keys, false); err != nil {
+		t.Fatalf("prepare key root: %v", err)
+	}
+	if err := WriteMarker(keys, "decernor"); err != nil {
+		t.Fatalf("write key marker: %v", err)
+	}
+	if _, err := PrepareOutputRootFor(keys, true, "a generated lexical corpus", MarkerLexicalCorpus); err == nil {
+		t.Fatal("lexical --force replaced a generated-real key root")
+	}
+}
