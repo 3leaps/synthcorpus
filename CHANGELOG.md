@@ -28,6 +28,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Changed
 
+- **Decernor consumer pin is tagged `v0.1.3`.** Exact committed-synthetic
+  fingerprint goldens track that binary (`fb19564`): GPG success records carry
+  `key_role`, and minisign public-blob SHA-256 is lowercase hex. Locate remains
+  `DECERNOR_BIN` / PATH.
 - **Per-generator output-root ownership markers.** Each generator owns a
   distinct marker file and kind, so `--force` can only replace a root its own
   lane created, and a corpus holding no key material is no longer labelled with

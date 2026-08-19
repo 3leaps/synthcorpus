@@ -139,6 +139,7 @@ type Record struct {
 	Fingerprint       *string `json:"fingerprint"`
 	FingerprintScheme string  `json:"fingerprint_scheme"`
 	KeyID             *string `json:"key_id,omitempty"`
+	KeyRole           *string `json:"key_role,omitempty"`
 	Confidence        string  `json:"confidence"`
 	Reason            *string `json:"reason,omitempty"`
 }
@@ -465,7 +466,7 @@ func parseRecord(line []byte) (Record, error) {
 		"algorithm": false, "fingerprint": false, "fingerprint_scheme": false,
 		"confidence": false,
 	}
-	optional := map[string]bool{"key_id": true, "reason": true}
+	optional := map[string]bool{"key_id": true, "reason": true, "key_role": true}
 	for field := range fields {
 		if _, ok := required[field]; ok {
 			required[field] = true
@@ -480,7 +481,7 @@ func parseRecord(line []byte) (Record, error) {
 			return Record{}, fmt.Errorf("missing required field %q", field)
 		}
 	}
-	for _, field := range []string{"key_id", "reason"} {
+	for _, field := range []string{"key_id", "reason", "key_role"} {
 		if raw, present := fields[field]; present && bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
 			return Record{}, fmt.Errorf("field %q must be a string when present", field)
 		}
@@ -521,6 +522,9 @@ func validateRecord(r Record) error {
 	}
 	if r.KeyID != nil && *r.KeyID == "" {
 		return errors.New("key_id must be non-empty when present")
+	}
+	if err := validateKeyRole(r); err != nil {
+		return err
 	}
 	if r.Reason != nil && !validReasons[*r.Reason] {
 		return fmt.Errorf("invalid reason %q", *r.Reason)
@@ -654,10 +658,44 @@ func hasWindowsDrivePrefix(path string) bool {
 	return letter >= 'A' && letter <= 'Z' || letter >= 'a' && letter <= 'z'
 }
 
+func validateKeyRole(r Record) error {
+	gpgSuccess := r.Kind == "gpg" && r.Fingerprint != nil
+	if gpgSuccess {
+		if r.KeyRole == nil || (*r.KeyRole != "primary" && *r.KeyRole != "subkey") {
+			return errors.New("gpg success requires key_role primary or subkey")
+		}
+		if r.KeyID == nil || !isUpperHex(*r.KeyID, 16) {
+			return errors.New("gpg success requires uppercase 16-hex key_id")
+		}
+		fp := *r.Fingerprint
+		if len(fp) < 16 || *r.KeyID != fp[len(fp)-16:] {
+			return errors.New("gpg key_id must equal the fingerprint suffix")
+		}
+		return nil
+	}
+	if r.KeyRole != nil {
+		return errors.New("key_role is prohibited except on successful gpg records")
+	}
+	return nil
+}
+
+func isUpperHex(value string, n int) bool {
+	if len(value) != n {
+		return false
+	}
+	for _, r := range value {
+		if r >= '0' && r <= '9' || r >= 'A' && r <= 'F' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
 func validateFingerprintEncoding(r Record) error {
 	value := *r.Fingerprint
 	switch r.FingerprintScheme {
-	case "minisign-public-blob-sha256-v1", "ssh-rfc4253-public-blob-sha256-v1":
+	case "ssh-rfc4253-public-blob-sha256-v1":
 		encoded, ok := strings.CutPrefix(value, "SHA256:")
 		if !ok {
 			return fmt.Errorf("non-canonical SHA256 fingerprint for scheme %q", r.FingerprintScheme)
@@ -665,6 +703,11 @@ func validateFingerprintEncoding(r Record) error {
 		decoded, err := base64.RawStdEncoding.Strict().DecodeString(encoded)
 		if err != nil || len(decoded) != sha256.Size || base64.RawStdEncoding.EncodeToString(decoded) != encoded {
 			return fmt.Errorf("non-canonical SHA256 fingerprint for scheme %q", r.FingerprintScheme)
+		}
+	case "minisign-public-blob-sha256-v1":
+		decoded, err := hex.DecodeString(value)
+		if err != nil || len(decoded) != sha256.Size || hex.EncodeToString(decoded) != value {
+			return fmt.Errorf("non-canonical minisign public-blob SHA-256 fingerprint")
 		}
 	case "minisign-key-id-v1":
 		decoded, err := hex.DecodeString(value)

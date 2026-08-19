@@ -56,6 +56,7 @@ func TestParseNDJSONRejectsSchemaDrift(t *testing.T) {
 		"null-key-id":         strings.Replace(validPositive, `"confidence":"high"`, `"key_id":null,"confidence":"high"`, 1),
 		"null-reason":         strings.Replace(validPositive, `"confidence":"high"`, `"confidence":"high","reason":null`, 1),
 		"empty-fingerprint":   strings.Replace(validPositive, `"fingerprint":"SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"`, `"fingerprint":""`, 1),
+		"key-role-on-ssh":     strings.Replace(validPositive, `"confidence":"high"`, `"key_role":"primary","confidence":"high"`, 1),
 		"not-terminated":      strings.TrimSuffix(validNull, "\n"),
 	}
 	for name, input := range tests {
@@ -168,8 +169,26 @@ func TestGoldenComparisonRejectsInvalidRelativePaths(t *testing.T) {
 	}
 }
 
+func TestParseNDJSONGPGSuccessRequiresRole(t *testing.T) {
+	fp := strings.Repeat("AB", 20)
+	keyID := fp[len(fp)-16:]
+	valid := `{"schema_version":"v0","path":"gpg/public.asc","kind":"gpg","class":"public","algorithm":"openpgp-fingerprint","fingerprint":"` + fp + `","fingerprint_scheme":"openpgp-fingerprint-v1","key_id":"` + keyID + `","key_role":"primary","confidence":"high"}` + "\n"
+	if _, err := ParseNDJSON([]byte(valid)); err != nil {
+		t.Fatal(err)
+	}
+	missingRole := strings.Replace(valid, `,"key_role":"primary"`, "", 1)
+	if _, err := ParseNDJSON([]byte(missingRole)); err == nil {
+		t.Fatal("expected missing key_role rejection")
+	}
+	nullGPG := `{"schema_version":"v0","path":"gpg/public.asc","kind":"gpg","class":"public","algorithm":"openpgp-fingerprint","fingerprint":null,"fingerprint_scheme":"openpgp-fingerprint-v1","key_role":"primary","confidence":"medium","reason":"parse-unsupported"}` + "\n"
+	if _, err := ParseNDJSON([]byte(nullGPG)); err == nil {
+		t.Fatal("expected key_role on null gpg rejection")
+	}
+}
+
 func TestCanonicalFingerprintEncodings(t *testing.T) {
 	canonicalSHA := "SHA256:" + base64.RawStdEncoding.EncodeToString(make([]byte, sha256.Size))
+	canonicalMinisignBlob := strings.Repeat("ab", 32)
 	canonicalOpenPGP20 := strings.Repeat("AB", 20)
 	canonicalOpenPGP32 := strings.Repeat("CD", 32)
 	tests := []struct {
@@ -181,7 +200,9 @@ func TestCanonicalFingerprintEncodings(t *testing.T) {
 	}{
 		{name: "sha-32-byte", scheme: "ssh-rfc4253-public-blob-sha256-v1", value: canonicalSHA},
 		{name: "sha-invalid-pad-bits", scheme: "ssh-rfc4253-public-blob-sha256-v1", value: "SHA256:" + strings.Repeat("A", 42) + "B", wantErr: true},
-		{name: "sha-malformed", scheme: "minisign-public-blob-sha256-v1", value: "SHA256:not+base64!", wantErr: true},
+		{name: "minisign-blob-hex", scheme: "minisign-public-blob-sha256-v1", value: canonicalMinisignBlob},
+		{name: "minisign-blob-old-sha256", scheme: "minisign-public-blob-sha256-v1", value: "SHA256:not+base64!", wantErr: true},
+		{name: "minisign-blob-uppercase", scheme: "minisign-public-blob-sha256-v1", value: strings.Repeat("AB", 32), wantErr: true},
 		{name: "sha-wrong-decoded-length", scheme: "ssh-rfc4253-public-blob-sha256-v1", value: "SHA256:" + base64.RawStdEncoding.EncodeToString(make([]byte, 31)), wantErr: true},
 		{name: "openpgp-v4-20-byte", scheme: "openpgp-fingerprint-v1", value: canonicalOpenPGP20},
 		{name: "openpgp-v5-32-byte", scheme: "openpgp-fingerprint-v1", value: canonicalOpenPGP32},

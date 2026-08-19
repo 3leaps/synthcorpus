@@ -41,6 +41,7 @@ type Pin struct {
 	Consumer        string `json:"consumer"`
 	Tool            string `json:"tool"`
 	MinVersion      string `json:"min_version"`
+	PreferredTag    string `json:"preferred_tag,omitempty"`
 	PreferredCommit string `json:"preferred_commit"`
 	SourceRepo      string `json:"source_repo"`
 	Notes           string `json:"notes,omitempty"`
@@ -106,7 +107,19 @@ func validatePin(pin Pin) error {
 	if err := validateCommitSHA(pin.PreferredCommit, "preferred_commit"); err != nil {
 		return err
 	}
+	if pin.PreferredTag != "" && !validReleaseTag(pin.PreferredTag) {
+		return fmt.Errorf("pin preferred_tag %q is not a vMAJOR.MINOR.PATCH tag", pin.PreferredTag)
+	}
 	return nil
+}
+
+func validReleaseTag(tag string) bool {
+	tag = strings.TrimSpace(tag)
+	if !strings.HasPrefix(tag, "v") {
+		return false
+	}
+	_, err := parseDottedVersion(strings.TrimPrefix(tag, "v"))
+	return err == nil
 }
 
 // LocateBinary resolves the decernor executable.
