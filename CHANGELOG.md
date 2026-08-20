@@ -7,6 +7,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-08-20
+
 ### Added
 
 - **Lexical-mutation corpus generator.** A second lane produces deterministic
@@ -28,11 +30,13 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Changed
 
-- **Decernor consumer pin is tagged `v0.1.3`.** Exact committed-synthetic
-  fingerprint goldens track that binary (`fb19564`): GPG success records carry
+- **Decernor consumer pin is tagged `v0.1.4`.** Exact committed-synthetic
+  fingerprint goldens track that binary (`32d0176`): GPG success records carry
   `key_role`, and minisign public-blob SHA-256 is lowercase hex. Locate remains
   `DECERNOR_BIN` / PATH. The pin requires `preferred_tag` as `v` plus the
   three-part `min_version`. Stable order includes `key_role` before identity.
+  Fingerprint output is unchanged from the prior tagged cut; goldens are not
+  rewritten.
 - **Per-generator output-root ownership markers.** Each generator owns a
   distinct marker file and kind, so `--force` can only replace a root its own
   lane created, and a corpus holding no key material is no longer labelled with
@@ -77,5 +81,6 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - The generator rejects Git worktrees and Git directories, stages output before
   publication, and restricts replacement to synthcorpus-owned directories.
 
-[Unreleased]: https://github.com/3leaps/synthcorpus/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/3leaps/synthcorpus/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/3leaps/synthcorpus/releases/tag/v0.1.1
 [0.1.0]: https://github.com/3leaps/synthcorpus/releases/tag/v0.1.0

@@ -4,6 +4,43 @@ This file contains release notes for up to the three most recent releases in rev
 
 ---
 
+## v0.1.1 (2026-08-20)
+
+**Lexical lane and tagged Decernor pin**
+
+synthcorpus v0.1.1 adds a second generator lane for deterministic
+lexical-mutation corpora and pins the Decernor consumer contract to tagged
+`v0.1.4`. Generated-real material still never enters Git.
+
+### Highlights
+
+- **Lexical-mutation corpus generator.** `synthcorpus-lexgen` emits a 49-cell
+  matrix of visibly synthetic terms (`zzlx` plus a seed-derived body) with
+  sterile and protected output planes. Population floors and generation-time
+  guards fail the run rather than emit a thin or colliding corpus.
+- **Decernor consumer pin is tagged `v0.1.4`.** Exact committed-synthetic
+  fingerprint goldens track that binary. Locate remains `DECERNOR_BIN` / PATH.
+  Fingerprint output is unchanged from the prior tagged cut; goldens are not
+  rewritten.
+- **Per-generator ownership markers.** Each generator owns a distinct marker
+  file and kind so `--force` can only replace a root its own lane created.
+- Repository and generator report version `0.1.1`. Releases remain signed tags
+  plus notes, with no prebuilt generator binary or attached corpus bundle.
+
+### Governing invariant
+
+Generated-real material never enters the repository. Only registered,
+provably unusable committed-synthetic specimens live under `fixtures/`.
+
+### Compatibility
+
+No migration is required. The generator remains a repository-local dogfooding
+tool and is not distributed. Consumer contract callers must supply a Decernor
+binary that satisfies `manifests/decernor-pin.json` (`v0.1.4` / `32d0176`).
+
+See [docs/releases/v0.1.1.md](docs/releases/v0.1.1.md) for the complete release
+narrative.
+
 ## v0.1.0 (2026-07-22)
 
 **Synthetic Security Fixtures with Provable Boundaries**
