@@ -41,6 +41,7 @@ type Pin struct {
 	Consumer        string `json:"consumer"`
 	Tool            string `json:"tool"`
 	MinVersion      string `json:"min_version"`
+	PreferredTag    string `json:"preferred_tag"`
 	PreferredCommit string `json:"preferred_commit"`
 	SourceRepo      string `json:"source_repo"`
 	Notes           string `json:"notes,omitempty"`
@@ -61,7 +62,7 @@ type Identity struct {
 }
 
 // LoadPin reads and validates a pin JSON file.
-// Missing schema/kind/tool/consumer, min_version, or preferred_commit fails closed.
+// Missing schema/kind/tool/consumer, min_version, preferred_tag, or preferred_commit fails closed.
 func LoadPin(path string) (Pin, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -100,13 +101,41 @@ func validatePin(pin Pin) error {
 	if strings.TrimSpace(pin.MinVersion) == "" {
 		return errors.New("pin min_version is required")
 	}
-	if _, err := parseDottedVersion(pin.MinVersion); err != nil {
-		return fmt.Errorf("pin min_version: %w", err)
+	if err := requireThreePartVersion(pin.MinVersion, "min_version"); err != nil {
+		return err
 	}
 	if err := validateCommitSHA(pin.PreferredCommit, "preferred_commit"); err != nil {
 		return err
 	}
+	if strings.TrimSpace(pin.PreferredTag) == "" {
+		return errors.New("pin preferred_tag is required")
+	}
+	if !validReleaseTag(pin.PreferredTag) {
+		return fmt.Errorf("pin preferred_tag %q is not a vMAJOR.MINOR.PATCH tag", pin.PreferredTag)
+	}
+	if pin.PreferredTag != "v"+pin.MinVersion {
+		return fmt.Errorf("pin preferred_tag %q does not match min_version %q", pin.PreferredTag, pin.MinVersion)
+	}
 	return nil
+}
+
+func requireThreePartVersion(v, label string) error {
+	parts, err := parseDottedVersion(v)
+	if err != nil {
+		return fmt.Errorf("pin %s: %w", label, err)
+	}
+	if len(parts) != 3 {
+		return fmt.Errorf("pin %s %q must be MAJOR.MINOR.PATCH", label, v)
+	}
+	return nil
+}
+
+func validReleaseTag(tag string) bool {
+	tag = strings.TrimSpace(tag)
+	if !strings.HasPrefix(tag, "v") {
+		return false
+	}
+	return requireThreePartVersion(strings.TrimPrefix(tag, "v"), "preferred_tag") == nil
 }
 
 // LocateBinary resolves the decernor executable.

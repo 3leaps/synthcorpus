@@ -72,7 +72,7 @@ func TestLoadPinRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if pin.MinVersion != "0.1.1" || pin.PreferredCommit != "8ca1555" {
+	if pin.MinVersion != "0.1.3" || pin.PreferredTag != "v0.1.3" || pin.PreferredCommit != "fb19564" {
 		t.Fatalf("pin = %#v", pin)
 	}
 	if pin.Locate.Env != EnvBinary {
@@ -87,6 +87,7 @@ func TestCheckPinVersionAndCommit(t *testing.T) {
 		Consumer:        pinConsumer,
 		Tool:            pinTool,
 		MinVersion:      "0.1.1",
+		PreferredTag:    "v0.1.1",
 		PreferredCommit: "c23af46",
 	}
 	if err := CheckPin(Identity{Version: "0.1.1", Commit: "c23af46"}, pin); err != nil {
@@ -144,6 +145,46 @@ func TestVersionAtLeastStrict(t *testing.T) {
 	}
 	if versionAtLeast("0.1", "0.1.1") {
 		t.Fatal("shorter have must not satisfy longer want when missing components are zero and want has trailing nonzero")
+	}
+}
+
+func TestValidatePinRequiresExactTag(t *testing.T) {
+	base := Pin{
+		SchemaVersion:   pinSchemaVersion,
+		Kind:            pinKind,
+		Consumer:        pinConsumer,
+		Tool:            pinTool,
+		MinVersion:      "0.1.3",
+		PreferredTag:    "v0.1.3",
+		PreferredCommit: "fb19564",
+	}
+	if err := validatePin(base); err != nil {
+		t.Fatal(err)
+	}
+
+	missing := base
+	missing.PreferredTag = ""
+	if err := validatePin(missing); err == nil {
+		t.Fatal("expected missing preferred_tag failure")
+	}
+
+	mismatch := base
+	mismatch.PreferredTag = "v9.9.9"
+	if err := validatePin(mismatch); err == nil {
+		t.Fatal("expected mismatched preferred_tag failure")
+	}
+
+	twoPart := base
+	twoPart.MinVersion = "0.1"
+	twoPart.PreferredTag = "v0.1"
+	if err := validatePin(twoPart); err == nil {
+		t.Fatal("expected two-part tag failure")
+	}
+
+	malformed := base
+	malformed.PreferredTag = "v0.1"
+	if err := validatePin(malformed); err == nil {
+		t.Fatal("expected malformed preferred_tag failure")
 	}
 }
 

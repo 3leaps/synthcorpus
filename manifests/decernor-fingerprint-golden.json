@@ -17,6 +17,7 @@
       "kind",
       "class",
       "fingerprint_scheme",
+      "key_role",
       "key_id|fingerprint|reason"
     ],
     "timestamps": "absent"
@@ -24,6 +25,6 @@
   "expected_records": 10,
   "golden": {
     "path": "manifests/decernor-fingerprint-v0.ndjson",
-    "sha256": "a8a0c59fcd04a18200e8fa610b01dc5d5dc3a2760da5814d4489f8d51876a0b9"
+    "sha256": "437fcdca6dc9048afffd14c28719659d0618541a7ae5dad2c2557022810f14e7"
   }
 }
