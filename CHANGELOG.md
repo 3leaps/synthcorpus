@@ -13,7 +13,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 - **MIT `LICENSE` at the repository root.** Copyright 2025-2026 3 Leaps, LLC.
   README has a `## License` pointer. `NOTICE.md` restates the copyright and
-  points at `LICENSE`.
+  points at `LICENSE`. The MIT License applies to earlier tagged source as
+  well; v0.1.2 is the first tag whose automatic source archive includes the
+  `LICENSE` file.
 
 ## [0.1.1] - 2026-08-20
 
