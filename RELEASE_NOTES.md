@@ -4,6 +4,33 @@ This file contains release notes for up to the three most recent releases in rev
 
 ---
 
+## v0.1.2 (2026-08-20)
+
+**MIT license**
+
+synthcorpus v0.1.2 adds a root MIT `LICENSE` (copyright 2025-2026 3 Leaps, LLC)
+and a README license pointer. Generated-real material still never enters Git.
+Releases remain signed tags plus notes.
+
+### Highlights
+
+- Root `LICENSE` is MIT. `NOTICE.md` restates the copyright and points at that
+  file. README `## License` links it.
+- Repository and generator report version `0.1.2`. No-publish posture is
+  unchanged: no prebuilt generator binary or attached corpus bundle.
+
+### Governing invariant
+
+Generated-real material never enters the repository. Only registered,
+provably unusable committed-synthetic specimens live under `fixtures/`.
+
+### Compatibility
+
+No migration is required. The Decernor consumer pin remains tagged `v0.1.4`.
+
+See [docs/releases/v0.1.2.md](docs/releases/v0.1.2.md) for the complete release
+narrative.
+
 ## v0.1.1 (2026-08-20)
 
 **Lexical lane and tagged Decernor pin**

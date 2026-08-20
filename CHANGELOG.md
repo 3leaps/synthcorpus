@@ -7,6 +7,14 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-08-20
+
+### Added
+
+- **MIT `LICENSE` at the repository root.** Copyright 2025-2026 3 Leaps, LLC.
+  README has a `## License` pointer. `NOTICE.md` restates the copyright and
+  points at `LICENSE`.
+
 ## [0.1.1] - 2026-08-20
 
 ### Added
@@ -81,6 +89,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - The generator rejects Git worktrees and Git directories, stages output before
   publication, and restricts replacement to synthcorpus-owned directories.
 
-[Unreleased]: https://github.com/3leaps/synthcorpus/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/3leaps/synthcorpus/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/3leaps/synthcorpus/releases/tag/v0.1.2
 [0.1.1]: https://github.com/3leaps/synthcorpus/releases/tag/v0.1.1
 [0.1.0]: https://github.com/3leaps/synthcorpus/releases/tag/v0.1.0
