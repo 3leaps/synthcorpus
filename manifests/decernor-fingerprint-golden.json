@@ -17,6 +17,7 @@
       "kind",
       "class",
       "fingerprint_scheme",
+      "key_role",
       "key_id|fingerprint|reason"
     ],
     "timestamps": "absent"

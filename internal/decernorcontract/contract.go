@@ -265,7 +265,7 @@ func validateInvocation(i Invocation, input string) error {
 }
 
 func validateNormalization(n Normalization) error {
-	want := []string{"path", "kind", "class", "fingerprint_scheme", "key_id|fingerprint|reason"}
+	want := []string{"path", "kind", "class", "fingerprint_scheme", "key_role", "key_id|fingerprint|reason"}
 	if n.PathSeparator != "/" || n.Timestamps != "absent" || !equalStrings(n.Ordering, want) {
 		return fmt.Errorf("unsupported normalization %#v", n)
 	}
@@ -586,7 +586,7 @@ func recordSortKey(r Record) string {
 	if id == "" {
 		id = optionalString(r.Reason)
 	}
-	return strings.Join([]string{r.Path, r.Kind, r.Class, r.FingerprintScheme, id}, "\x00")
+	return strings.Join([]string{r.Path, r.Kind, r.Class, r.FingerprintScheme, optionalString(r.KeyRole), id}, "\x00")
 }
 
 func ValidateGeneratedRecords(records []Record, p GeneratedProperties) error {

@@ -78,6 +78,30 @@ func TestCheckStableOrderingRejectsReorderedRecords(t *testing.T) {
 	}
 }
 
+func TestCheckStableOrderingUsesKeyRoleBeforeKeyID(t *testing.T) {
+	primaryFP := strings.Repeat("AA", 20)
+	subkeyFP := strings.Repeat("00", 20)
+	primary := Record{
+		SchemaVersion: recordSchemaVersion, Path: "gpg/public.asc", Kind: "gpg", Class: "public",
+		Algorithm: "openpgp-fingerprint", Fingerprint: &primaryFP, FingerprintScheme: "openpgp-fingerprint-v1",
+		KeyID: stringPointer(primaryFP[len(primaryFP)-16:]), KeyRole: stringPointer("primary"), Confidence: "high",
+	}
+	subkey := Record{
+		SchemaVersion: recordSchemaVersion, Path: "gpg/public.asc", Kind: "gpg", Class: "public",
+		Algorithm: "openpgp-fingerprint", Fingerprint: &subkeyFP, FingerprintScheme: "openpgp-fingerprint-v1",
+		KeyID: stringPointer(subkeyFP[len(subkeyFP)-16:]), KeyRole: stringPointer("subkey"), Confidence: "high",
+	}
+	if subkey.KeyID == nil || primary.KeyID == nil || *subkey.KeyID >= *primary.KeyID {
+		t.Fatal("fixture must have subkey ID sort before primary ID")
+	}
+	if err := CheckStableOrdering([]Record{primary, subkey}); err != nil {
+		t.Fatal(err)
+	}
+	if err := CheckStableOrdering([]Record{subkey, primary}); err == nil {
+		t.Fatal("expected key_role to outrank key_id")
+	}
+}
+
 func TestValidateGeneratedRecordsRejectsIncompatibleTuples(t *testing.T) {
 	canonical := "SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 	tests := map[string]Record{
