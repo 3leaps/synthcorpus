@@ -8,14 +8,15 @@ worktree path, never a Go module import from decernor into synthcorpus.
 | Field | Value |
 |-------|-------|
 | Source | https://github.com/3leaps/decernor |
-| Min version | `0.1.3` |
-| Preferred tag | `v0.1.3` |
-| Preferred commit | `fb19564` (object named by the tag; GPG-primary contract token and hex minisign blob SHA) |
+| Min version | `0.1.4` |
+| Preferred tag | `v0.1.4` |
+| Preferred commit | `32d0176` (object named by the tag; GPG-primary contract token and hex minisign blob SHA) |
 | Machine pin file | [`manifests/decernor-pin.json`](../manifests/decernor-pin.json) |
 
 The **tag** is the locate contract. `preferred_commit` records the tagged
 object (minimum 7 hex characters; identity must equal the pin or be a longer
-extension of it). Re-pin only if a later tag changes fingerprint output.
+extension of it). Track the shipping tagged cut. Refresh exact goldens only
+when fingerprint output changes.
 
 ## Locate rules (one-way dependency)
 
@@ -27,8 +28,8 @@ Verify identity with extended version output (never parse secret material):
 
 ```sh
 "$DECERNOR_BIN" version -e
-# Version: 0.1.3
-# Commit:  fb19564
+# Version: 0.1.4
+# Commit:  32d0176
 ```
 
 Package helper: `internal/decernorloc` (`Locate`, `ReadIdentity`, `CheckPin`).
