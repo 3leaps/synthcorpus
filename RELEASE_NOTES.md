@@ -15,7 +15,9 @@ Releases remain signed tags plus notes.
 ### Highlights
 
 - Root `LICENSE` is MIT. `NOTICE.md` restates the copyright and points at that
-  file. README `## License` links it.
+  file. README `## License` links it. The MIT License applies to earlier tagged
+  source as well; v0.1.2 is the first tag whose automatic source archive
+  includes the `LICENSE` file.
 - Repository and generator report version `0.1.2`. No-publish posture is
   unchanged: no prebuilt generator binary or attached corpus bundle.
 
