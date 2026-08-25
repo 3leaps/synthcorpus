@@ -217,6 +217,6 @@ ceremony.
 
 - [ ] Confirm the tag and GitHub release resolve to the intended `main` commit.
 - [ ] Confirm the three required checks remain green on that commit.
-- [ ] Verify `[Unreleased]` in `CHANGELOG.md` starts from `v0.1.2`.
+- [ ] Verify `[Unreleased]` in `CHANGELOG.md` starts from `v0.1.3`.
 - [ ] Keep only the three most recent entries in `RELEASE_NOTES.md`; retain the
       complete per-release narrative under `docs/releases/`.

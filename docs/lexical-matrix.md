@@ -98,7 +98,7 @@ are flagged `critical_seed`: the answer key asserts these are never missed.
 ## Output
 
 ```sh
-./bin/synthcorpus-lexgen --seed 7312026 --out ~/dev/dogfooding/lexmatrix
+./bin/synthcorpus-lexgen --seed 7312026 --out /path/to/isolated-root
 ```
 
 | Flag | Effect |

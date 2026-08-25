@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/3leaps/synthcorpus"
 	"github.com/3leaps/synthcorpus/internal/generator"
@@ -26,7 +27,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	var out string
 	var force bool
 	var showVersion bool
-	fs.StringVar(&out, "out", "", "output directory; defaults to ~/dev/dogfooding/<tool>")
+	fs.StringVar(&out, "out", "", "output directory outside any git worktree; empty uses $SYNTHCORPUS_OUT/<tool> or a local isolated root")
 	fs.BoolVar(&force, "force", false, "replace an existing synthcorpus-owned generated-real directory")
 	fs.BoolVar(&showVersion, "version", false, "print version and exit")
 
@@ -43,11 +44,15 @@ func run(args []string, stdout, stderr io.Writer) error {
 
 	tool := fs.Arg(0)
 	if out == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return fmt.Errorf("resolve home directory: %w", err)
+		if root := strings.TrimSpace(os.Getenv("SYNTHCORPUS_OUT")); root != "" {
+			out = filepath.Join(root, tool)
+		} else {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				return fmt.Errorf("resolve home directory: %w", err)
+			}
+			out = filepath.Join(home, "dev", "dogfooding", tool)
 		}
-		out = filepath.Join(home, "dev", "dogfooding", tool)
 	}
 
 	return generator.Generate(context.Background(), generator.Options{

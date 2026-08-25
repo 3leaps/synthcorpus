@@ -7,6 +7,25 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-08-25
+
+### Added
+
+- Link-only `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md`, and `SECURITY.md` pointers
+  to [3leaps/oss-policies](https://github.com/3leaps/oss-policies).
+
+### Changed
+
+- **Decernor consumer pin is tagged `v0.1.5`.** Machine pin and docs name
+  `min_version` `0.1.5`, `preferred_tag` `v0.1.5`, and `preferred_commit`
+  `5dfd574`. Exact committed-synthetic fingerprint goldens track that binary;
+  fingerprint output is unchanged from the prior tagged cut, so goldens are
+  not rewritten. Locate remains `DECERNOR_BIN` / PATH.
+- Generator `--out` help and public examples no longer advertise a host layout
+  path. Empty `--out` prefers `$SYNTHCORPUS_OUT/<tool>` (or `…/lexmatrix`)
+  before the local isolated-root fallback.
+- README wording refers to 3 Leaps detectors without a “galaxy” framing.
+
 ## [0.1.2] - 2026-08-20
 
 ### Added
@@ -91,7 +110,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - The generator rejects Git worktrees and Git directories, stages output before
   publication, and restricts replacement to synthcorpus-owned directories.
 
-[Unreleased]: https://github.com/3leaps/synthcorpus/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/3leaps/synthcorpus/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/3leaps/synthcorpus/releases/tag/v0.1.3
 [0.1.2]: https://github.com/3leaps/synthcorpus/releases/tag/v0.1.2
 [0.1.1]: https://github.com/3leaps/synthcorpus/releases/tag/v0.1.1
 [0.1.0]: https://github.com/3leaps/synthcorpus/releases/tag/v0.1.0
