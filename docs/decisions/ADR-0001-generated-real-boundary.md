@@ -15,7 +15,7 @@ The repository exists because detector repos must not mint or commit real key ma
 
 ## Decision
 
-Generated-real material is produced only by `cmd/synthcorpus-gen` into an output root outside git, defaulting to `~/dev/dogfooding/<tool>`. The generator refuses to use an output path inside a git worktree and writes a synthcorpus ownership marker so `--force` can only replace directories it owns.
+Generated-real material is produced only by `cmd/synthcorpus-gen` into an output root outside git (`--out`, or `$SYNTHCORPUS_OUT/<tool>`, with a local isolated-root fallback). The generator refuses to use an output path inside a git worktree and writes a synthcorpus ownership marker so `--force` can only replace directories it owns.
 
 Committed fixtures, added in later briefs, must be synthetic by construction and must carry their own proof that they are not usable keys.
 

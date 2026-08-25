@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/3leaps/synthcorpus"
 	"github.com/3leaps/synthcorpus/internal/lexmatrix"
@@ -29,7 +30,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	var includeExtensions bool
 	var showVersion bool
 
-	fs.StringVar(&out, "out", "", "output directory; defaults to ~/dev/dogfooding/lexmatrix")
+	fs.StringVar(&out, "out", "", "output directory outside any git worktree; empty uses $SYNTHCORPUS_OUT/lexmatrix or a local isolated root")
 	fs.UintVar(&seed, "seed", 0, "generation seed (0-4294967295)")
 	fs.StringVar(&profile, "profile", "seed", "corpus profile label recorded in the fixture set; does not change generation")
 	fs.BoolVar(&force, "force", false, "replace an existing synthcorpus-owned output directory")
@@ -56,11 +57,15 @@ func run(args []string, stdout, stderr io.Writer) error {
 	}
 
 	if out == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return fmt.Errorf("resolve home directory: %w", err)
+		if root := strings.TrimSpace(os.Getenv("SYNTHCORPUS_OUT")); root != "" {
+			out = filepath.Join(root, "lexmatrix")
+		} else {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				return fmt.Errorf("resolve home directory: %w", err)
+			}
+			out = filepath.Join(home, "dev", "dogfooding", "lexmatrix")
 		}
-		out = filepath.Join(home, "dev", "dogfooding", "lexmatrix")
 	}
 
 	result, err := lexmatrix.Generate(lexmatrix.Options{

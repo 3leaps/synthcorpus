@@ -8,8 +8,8 @@ proofs assert that helpers cannot import or use those files, and that
 shape-valid minisign public blobs use invalid Ed25519 encodings.
 
 **Generated-real material never enters this repository.** Real throwaway
-keypairs are produced only by `cmd/synthcorpus-gen` into an isolated dogfooding
-directory outside git (default `~/dev/dogfooding/<tool>`). Do not copy dogfood
+keypairs are produced only by `cmd/synthcorpus-gen` into an isolated output
+root outside git (`--out`, or `$SYNTHCORPUS_OUT/<tool>`). Do not copy that
 output into the worktree. Do not commit private keys, passphrases from live
 systems, or scan output from real machines.
 
@@ -50,8 +50,8 @@ Generator:
 
 ```sh
 # never run with --out inside a git worktree
-./bin/synthcorpus-gen --out ~/dev/dogfooding/decernor decernor
-./bin/synthcorpus-lexgen --seed 7312026 --out ~/dev/dogfooding/lexmatrix
+./bin/synthcorpus-gen --out /path/to/isolated-root decernor
+./bin/synthcorpus-lexgen --seed 7312026 --out /path/to/isolated-root
 ```
 
 The lexical lane splits its output into a sterile plane (`fixtures.json`,

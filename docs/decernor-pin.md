@@ -8,9 +8,9 @@ worktree path, never a Go module import from decernor into synthcorpus.
 | Field | Value |
 |-------|-------|
 | Source | https://github.com/3leaps/decernor |
-| Min version | `0.1.4` |
-| Preferred tag | `v0.1.4` |
-| Preferred commit | `32d0176` (object named by the tag; GPG-primary contract token and hex minisign blob SHA) |
+| Min version | `0.1.5` |
+| Preferred tag | `v0.1.5` |
+| Preferred commit | `5dfd574` (object named by the tag; GPG-primary contract token and hex minisign blob SHA) |
 | Machine pin file | [`manifests/decernor-pin.json`](../manifests/decernor-pin.json) |
 
 The **tag** is the locate contract. `preferred_commit` records the tagged
@@ -28,8 +28,8 @@ Verify identity with extended version output (never parse secret material):
 
 ```sh
 "$DECERNOR_BIN" version -e
-# Version: 0.1.4
-# Commit:  32d0176
+# Version: 0.1.5
+# Commit:  5dfd574
 ```
 
 Package helper: `internal/decernorloc` (`Locate`, `ReadIdentity`, `CheckPin`).
