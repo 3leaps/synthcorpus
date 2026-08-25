@@ -15,9 +15,9 @@ import (
 
 // stagingDirPrefix is a short, marker-style name for the mint staging root.
 // Longer historical names (.synthcorpus-staging-<pid>-<unixnano>) pushed
-// isolated GNUPGHOME paths over macOS AF_UNIX limits on shallow dogfood
-// parents such as ~/dev/dogfooding, so gpg-agent could not start even though
-// the final published root would have been short enough.
+// isolated GNUPGHOME paths over macOS AF_UNIX limits on shallow isolated
+// output parents, so gpg-agent could not start even though the final
+// published root would have been short enough.
 const stagingDirPrefix = ".sc-stg-"
 
 const (

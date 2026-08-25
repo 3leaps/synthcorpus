@@ -12,8 +12,8 @@ import (
 // home+"/S.gpg-agent" stays safely under the limit with a few bytes of slack.
 //
 // 104 - 13 (socket) - 1 (NUL) - slack → keep homes ≤ 80 when create-socketdir
-// is unavailable. Historical long staging names under ~/dev/dogfooding reached
-// ~88 chars and gpg-agent failed to start on macOS without /run/user.
+// is unavailable. Historical long staging names under shallow isolated roots
+// reached ~88 chars and gpg-agent failed to start on macOS without /run/user.
 const maxGNUPGHomeWithoutSocketdir = 80
 
 // prepareGPGHome ensures the isolated home is ready for agent use. Deep
