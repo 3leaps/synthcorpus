@@ -7,6 +7,18 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-09-18
+
+### Changed
+
+- The Decernor consumer contract now pins published `v0.1.7` at peeled commit
+  `70efa26`. Exact committed-synthetic fingerprint goldens remain byte-identical,
+  and generated-real checks remain transient.
+- The Go directive moves from 1.26.4 to 1.26.6, clearing the applicable standard
+  library advisories reported against the prior toolchain.
+- `go.yaml.in/yaml/v3` moves from v3.0.4 to v3.0.5. `edwards25519` remains at
+  v1.2.0.
+
 ## [0.1.3] - 2026-08-25
 
 ### Added
@@ -110,7 +122,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - The generator rejects Git worktrees and Git directories, stages output before
   publication, and restricts replacement to synthcorpus-owned directories.
 
-[Unreleased]: https://github.com/3leaps/synthcorpus/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/3leaps/synthcorpus/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/3leaps/synthcorpus/releases/tag/v0.1.4
 [0.1.3]: https://github.com/3leaps/synthcorpus/releases/tag/v0.1.3
 [0.1.2]: https://github.com/3leaps/synthcorpus/releases/tag/v0.1.2
 [0.1.1]: https://github.com/3leaps/synthcorpus/releases/tag/v0.1.1
