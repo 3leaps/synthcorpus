@@ -4,6 +4,39 @@ This file contains release notes for up to the three most recent releases in rev
 
 ---
 
+## v0.1.4 (2026-09-18)
+
+**Patched Go baseline and Decernor v0.1.7 consumer pin**
+
+synthcorpus v0.1.4 moves to Go 1.26.6, updates YAML to v3.0.5, and pins the
+Decernor consumer contract to published `v0.1.7` at peeled commit `70efa26`.
+The corpus, schemas, and expected fingerprint records are unchanged.
+
+### Highlights
+
+- **Decernor consumer pin is tagged `v0.1.7`.** Exact committed-synthetic
+  goldens remain byte-identical; generated-real checks remain transient. Locate
+  remains an absolute `DECERNOR_BIN` or `PATH` lookup.
+- **Go 1.26.6** clears the standard-library advisories applicable to the prior
+  Go 1.26.4 baseline.
+- **YAML v3.0.5** provides the available direct dependency patch;
+  `edwards25519` remains at v1.2.0.
+- Repository and both generators report version `0.1.4`. Releases remain
+  GPG-signed tags plus notes, with zero uploaded assets.
+
+### Governing invariant
+
+Generated-real material never enters the repository. Only registered,
+provably unusable committed-synthetic specimens live under `fixtures/`.
+
+### Compatibility
+
+No migration is required. Consumer contract callers must supply a Decernor
+binary satisfying `manifests/decernor-pin.json` (`v0.1.7` / `70efa26`).
+
+See [docs/releases/v0.1.4.md](docs/releases/v0.1.4.md) for the complete release
+narrative.
+
 ## v0.1.3 (2026-08-25)
 
 **Decernor v0.1.5 pin and public baseline**
@@ -68,41 +101,4 @@ No migration is required. The Decernor consumer pin remained tagged `v0.1.4`
 for that cut.
 
 See [docs/releases/v0.1.2.md](docs/releases/v0.1.2.md) for the complete release
-narrative.
-
-## v0.1.1 (2026-08-20)
-
-**Lexical lane and tagged Decernor pin**
-
-synthcorpus v0.1.1 adds a second generator lane for deterministic
-lexical-mutation corpora and pins the Decernor consumer contract to tagged
-`v0.1.4`. Generated-real material still never enters Git.
-
-### Highlights
-
-- **Lexical-mutation corpus generator.** `synthcorpus-lexgen` emits a 49-cell
-  matrix of visibly synthetic terms (`zzlx` plus a seed-derived body) with
-  sterile and protected output planes. Population floors and generation-time
-  guards fail the run rather than emit a thin or colliding corpus.
-- **Decernor consumer pin is tagged `v0.1.4`.** Exact committed-synthetic
-  fingerprint goldens track that binary. Locate remains `DECERNOR_BIN` / PATH.
-  Fingerprint output is unchanged from the prior tagged cut; goldens are not
-  rewritten.
-- **Per-generator ownership markers.** Each generator owns a distinct marker
-  file and kind so `--force` can only replace a root its own lane created.
-- Repository and generator report version `0.1.1`. Releases remain signed tags
-  plus notes, with no prebuilt generator binary or attached corpus bundle.
-
-### Governing invariant
-
-Generated-real material never enters the repository. Only registered,
-provably unusable committed-synthetic specimens live under `fixtures/`.
-
-### Compatibility
-
-No migration is required. The generator remains a repository-local dogfooding
-tool and is not distributed. Consumer contract callers must supply a Decernor
-binary that satisfies `manifests/decernor-pin.json` (`v0.1.4` / `32d0176`).
-
-See [docs/releases/v0.1.1.md](docs/releases/v0.1.1.md) for the complete release
 narrative.

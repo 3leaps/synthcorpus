@@ -3,9 +3,9 @@
   "kind": "synthcorpus-decernor-pin",
   "consumer": "synthcorpus",
   "tool": "decernor",
-  "min_version": "0.1.5",
-  "preferred_tag": "v0.1.5",
-  "preferred_commit": "5dfd574",
+  "min_version": "0.1.7",
+  "preferred_tag": "v0.1.7",
+  "preferred_commit": "70efa26",
   "source_repo": "https://github.com/3leaps/decernor",
   "locate": {
     "env": "DECERNOR_BIN",
