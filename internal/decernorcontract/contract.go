@@ -280,8 +280,8 @@ func cleanRepoRelative(path string) bool {
 	return clean == path && clean != ".." && !strings.HasPrefix(clean, "../")
 }
 
-// ResolvePinnedBinary locates decernor by explicit absolute path, DECERNOR_BIN,
-// or PATH and then enforces the repository pin.
+// ResolvePinnedBinary locates decernor by explicit absolute path, the pin's
+// ordered environment variables, or PATH and then enforces the repository pin.
 func ResolvePinnedBinary(ctx context.Context, repoRoot, explicit string) (string, error) {
 	pin, err := decernorloc.LoadPin(filepath.Join(repoRoot, PinPath))
 	if err != nil {

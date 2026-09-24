@@ -76,7 +76,7 @@ ceremony.
 - [ ] Run the complete local gate with the pinned consumer binary:
 
   ```sh
-  DECERNOR_BIN=/absolute/path/to/decernor make check-all
+  THREELEAPS_SYNTHCORPUS_DECERNOR_BIN=/absolute/path/to/decernor make check-all
   ```
 
 - [ ] Confirm the required `basic-ubuntu`, `basic-macos`, and `gitleaks` checks
@@ -217,6 +217,6 @@ ceremony.
 
 - [ ] Confirm the tag and GitHub release resolve to the intended `main` commit.
 - [ ] Confirm the three required checks remain green on that commit.
-- [ ] Verify `[Unreleased]` in `CHANGELOG.md` starts from `v0.1.4`.
+- [ ] Verify `[Unreleased]` in `CHANGELOG.md` starts from `v0.1.5`.
 - [ ] Keep only the three most recent entries in `RELEASE_NOTES.md`; retain the
       complete per-release narrative under `docs/releases/`.

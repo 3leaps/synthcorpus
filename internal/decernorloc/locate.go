@@ -20,9 +20,11 @@ import (
 )
 
 const (
-	// EnvBinary is the preferred absolute path to a decernor binary.
+	// EnvRepoBinary is the repository-scoped absolute path to a decernor binary.
+	EnvRepoBinary = "THREELEAPS_SYNTHCORPUS_DECERNOR_BIN"
+	// EnvBinary is the legacy absolute path to a decernor binary.
 	EnvBinary = "DECERNOR_BIN"
-	// DefaultBinaryName is the PATH basename when EnvBinary is unset.
+	// DefaultBinaryName is the PATH basename when environment overrides are unset.
 	DefaultBinaryName = "decernor"
 	// MinCommitSHALen is the minimum hex length accepted for pin/identity commits.
 	// Short ambiguous prefixes (e.g. "c") must not satisfy a preferred pin.
@@ -51,6 +53,7 @@ type Pin struct {
 // Locate describes how to find the consumer binary.
 type Locate struct {
 	Env       string   `json:"env"`
+	EnvOrder  []string `json:"env_order,omitempty"`
 	PathNames []string `json:"path_names"`
 }
 
@@ -139,41 +142,34 @@ func validReleaseTag(tag string) bool {
 }
 
 // LocateBinary resolves the decernor executable.
-// Order: explicit path argument, then pin/env DECERNOR_BIN, then PATH names.
-// Relative paths and ".." segments are rejected.
+// Order: explicit path argument, then pin/env_order (or legacy env), then PATH.
+// A non-empty higher-priority choice fails closed if it is unusable.
 func LocateBinary(explicit string, pin Pin) (string, error) {
-	candidates := make([]string, 0, 4)
-	if strings.TrimSpace(explicit) != "" {
-		candidates = append(candidates, explicit)
+	if explicit != "" {
+		return authorizeBinaryPath(explicit)
 	}
-	envName := pin.Locate.Env
-	if envName == "" {
-		envName = EnvBinary
+	envOrder := pin.Locate.EnvOrder
+	if len(envOrder) == 0 {
+		envName := pin.Locate.Env
+		if envName == "" {
+			envName = EnvBinary
+		}
+		envOrder = []string{envName}
 	}
-	if v := strings.TrimSpace(os.Getenv(envName)); v != "" {
-		candidates = append(candidates, v)
+	for _, envName := range envOrder {
+		if v := os.Getenv(envName); v != "" {
+			return authorizeBinaryPath(v)
+		}
 	}
 	for _, name := range pin.Locate.PathNames {
 		if name == "" {
 			continue
 		}
 		if path, err := exec.LookPath(name); err == nil {
-			candidates = append(candidates, path)
+			return authorizeBinaryPath(path)
 		}
 	}
-	var errs []string
-	for _, c := range candidates {
-		abs, err := authorizeBinaryPath(c)
-		if err != nil {
-			errs = append(errs, err.Error())
-			continue
-		}
-		return abs, nil
-	}
-	if len(errs) > 0 {
-		return "", fmt.Errorf("decernor binary not usable: %s", strings.Join(errs, "; "))
-	}
-	return "", errors.New("decernor binary not found: set DECERNOR_BIN or install decernor on PATH")
+	return "", errors.New("decernor binary not found: set THREELEAPS_SYNTHCORPUS_DECERNOR_BIN or DECERNOR_BIN to an absolute path, or install decernor on PATH")
 }
 
 func authorizeBinaryPath(path string) (string, error) {
@@ -181,10 +177,7 @@ func authorizeBinaryPath(path string) (string, error) {
 		return "", errors.New("empty path")
 	}
 	if !filepath.IsAbs(path) {
-		// Allow bare PATH basenames only after LookPath; reject relative guesses.
-		if strings.Contains(path, string(filepath.Separator)) || strings.Contains(path, "..") {
-			return "", fmt.Errorf("refusing relative decernor path %q (use absolute DECERNOR_BIN)", path)
-		}
+		return "", fmt.Errorf("refusing relative decernor path %q (use an absolute path)", path)
 	}
 	if strings.Contains(path, "..") {
 		return "", fmt.Errorf("refusing path with .. segment: %s", path)

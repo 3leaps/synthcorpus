@@ -8,9 +8,9 @@ worktree path, never a Go module import from decernor into synthcorpus.
 | Field | Value |
 |-------|-------|
 | Source | https://github.com/3leaps/decernor |
-| Min version | `0.1.7` |
-| Preferred tag | `v0.1.7` |
-| Preferred commit | `70efa26` (commit peeled from the annotated tag; fingerprint contracts remain separate) |
+| Min version | `0.1.8` |
+| Preferred tag | `v0.1.8` |
+| Preferred commit | `08c0afc` (commit peeled from the annotated tag; fingerprint contracts remain separate) |
 | Machine pin file | [`manifests/decernor-pin.json`](../manifests/decernor-pin.json) |
 
 The **tag** is the locate contract. `preferred_commit` records the tagged
@@ -20,16 +20,23 @@ when fingerprint output changes.
 
 ## Locate rules (one-way dependency)
 
-1. Prefer **`DECERNOR_BIN`** (absolute path to a built `decernor` binary).
-2. Else search **`PATH`** for `decernor`.
-3. Refuse relative/`../decernor` guesses. Callers must pass an explicit binary.
+1. Use an explicit absolute binary path when the caller provides one.
+2. Else use **`THREELEAPS_SYNTHCORPUS_DECERNOR_BIN`**, then **`DECERNOR_BIN`**.
+   Both must be absolute paths. The pin keeps the legacy `env` field and adds
+   `env_order` for this priority.
+3. Else search **`PATH`** for `decernor`.
+
+A non-empty higher-priority value that is relative, missing, or otherwise
+unusable fails the lookup; it never falls through to another environment
+variable or `PATH`. Identity checking still rejects a binary below the pinned
+version or at the wrong commit.
 
 Verify identity with extended version output (never parse secret material):
 
 ```sh
-"$DECERNOR_BIN" version -e
-# Version: 0.1.7
-# Commit:  70efa26
+"$THREELEAPS_SYNTHCORPUS_DECERNOR_BIN" version -e
+# Version: 0.1.8
+# Commit:  08c0afc
 ```
 
 Package helper: `internal/decernorloc` (`Locate`, `ReadIdentity`, `CheckPin`).
@@ -45,7 +52,7 @@ Empty/`unknown` commits and malformed versions fail closed.
 Run both against the declared binary:
 
 ```sh
-DECERNOR_BIN=/absolute/path/to/decernor make contract
+THREELEAPS_SYNTHCORPUS_DECERNOR_BIN=/absolute/path/to/decernor make contract
 ```
 
 ## Generated-real property checks (no exact fingerprints)

@@ -66,8 +66,9 @@ The lexical lane carries its own ownership marker
 be stamped with the generated-real marker.
 
 The consumer contract locates a pinned decernor binary through an absolute
-`DECERNOR_BIN` or `PATH`; it never guesses a sibling worktree path. Generated-real
-contract output is validated transiently and is never committed.
+`THREELEAPS_SYNTHCORPUS_DECERNOR_BIN`, then `DECERNOR_BIN`, then `PATH`; it never
+guesses a sibling worktree path. Generated-real contract output is validated
+transiently and is never committed.
 
 ## Rules of the road
 

@@ -3,12 +3,13 @@
   "kind": "synthcorpus-decernor-pin",
   "consumer": "synthcorpus",
   "tool": "decernor",
-  "min_version": "0.1.7",
-  "preferred_tag": "v0.1.7",
-  "preferred_commit": "70efa26",
+  "min_version": "0.1.8",
+  "preferred_tag": "v0.1.8",
+  "preferred_commit": "08c0afc",
   "source_repo": "https://github.com/3leaps/decernor",
   "locate": {
     "env": "DECERNOR_BIN",
+    "env_order": ["THREELEAPS_SYNTHCORPUS_DECERNOR_BIN", "DECERNOR_BIN"],
     "path_names": ["decernor"]
   },
   "notes": "Binary-only pin for exact committed-synthetic goldens and generated-real property checks. Generated-real output and exact fingerprints are never committed."
