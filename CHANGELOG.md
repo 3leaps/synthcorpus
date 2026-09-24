@@ -7,6 +7,18 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-09-24
+
+### Changed
+
+- The Decernor consumer contract pins published `v0.1.8` at peeled commit
+  `08c0afc`. Exact committed-synthetic goldens remain unchanged, and
+  generated-real checks remain transient.
+- Binary lookup uses an explicit path, then
+  `THREELEAPS_SYNTHCORPUS_DECERNOR_BIN`, `DECERNOR_BIN`, and `PATH`. A non-empty
+  explicit or environment choice fails at that source when unusable.
+- The Go 1.26.6 toolchain and current module versions remain unchanged.
+
 ## [0.1.4] - 2026-09-18
 
 ### Changed
@@ -122,7 +134,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - The generator rejects Git worktrees and Git directories, stages output before
   publication, and restricts replacement to synthcorpus-owned directories.
 
-[Unreleased]: https://github.com/3leaps/synthcorpus/compare/v0.1.4...HEAD
+[Unreleased]: https://github.com/3leaps/synthcorpus/compare/v0.1.5...HEAD
+[0.1.5]: https://github.com/3leaps/synthcorpus/releases/tag/v0.1.5
 [0.1.4]: https://github.com/3leaps/synthcorpus/releases/tag/v0.1.4
 [0.1.3]: https://github.com/3leaps/synthcorpus/releases/tag/v0.1.3
 [0.1.2]: https://github.com/3leaps/synthcorpus/releases/tag/v0.1.2

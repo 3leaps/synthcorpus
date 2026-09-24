@@ -20,15 +20,15 @@ One-line: Synthetic, scanner-safe security-fixture corpus + throwaway-key genera
 | `cmd/synthcorpus-gen` | Generated-real mint (dogfooding roots only; never inside git) |
 | `cmd/synthcorpus-lexgen` | Lexical-mutation corpus generator (same never-inside-git rule) |
 | `docs/lexical-matrix.md` | Lexical-mutation matrix v1 — grammar, cells, floors, output planes |
-| `manifests/decernor-pin.json` | Consumer pin for drift-check locate-by-binary (tagged decernor `v0.1.7`) |
-| `docs/releases/` | Per-cut notes; current pack is [`v0.1.4`](docs/releases/v0.1.4.md) |
+| `manifests/decernor-pin.json` | Consumer pin for drift-check locate-by-binary (tagged decernor `v0.1.8`) |
+| `docs/releases/` | Per-cut notes; current pack is [`v0.1.5`](docs/releases/v0.1.5.md) |
 | `manifests/decernor-fingerprint-golden.json` | Deterministic committed-synthetic fingerprint contract |
 | `manifests/decernor-generated-real-properties.json` | Property-only generated-real contract (no exact random values) |
 | `AGENTS.md` | Agent guide — **safety header first** |
 
 ```sh
 make check-all
-DECERNOR_BIN=/absolute/path/to/decernor make contract
+THREELEAPS_SYNTHCORPUS_DECERNOR_BIN=/absolute/path/to/decernor make contract
 ./bin/synthcorpus-gen --out /path/to/isolated-root decernor   # outside this repo
 ```
 

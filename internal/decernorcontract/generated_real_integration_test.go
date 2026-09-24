@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/3leaps/synthcorpus/internal/decernorloc"
 	"github.com/3leaps/synthcorpus/internal/generator"
 )
 
@@ -18,7 +17,7 @@ func TestGeneratedRealProperties(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	repo := repoRoot(t)
-	binary, err := ResolvePinnedBinary(ctx, repo, os.Getenv(decernorloc.EnvBinary))
+	binary, err := ResolvePinnedBinary(ctx, repo, "")
 	if err != nil {
 		t.Fatal(err)
 	}
