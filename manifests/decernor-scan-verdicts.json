@@ -4,36 +4,55 @@
   "material_lane": "committed-synthetic",
   "fixtures_root": "fixtures-agent",
   "expectation_source": "GnuPG doc/keyformat.txt agent key forms; fixture class intent. Not derived from detector output.",
+  "expectation_provenance": {
+    "class": "format fact: each specimen's key form per doc/keyformat.txt, or a declared ambiguity that must fail closed",
+    "code": "detector contract: the finding code decernor documents for that class",
+    "severity": "policy judgement: per-profile severity from decernor's documented profile table, not from the format specification",
+    "guardread": "policy judgement: key-shaped content of any class is refused"
+  },
   "placements": {
     "agent-key-dir": "<home>/private-keys-v1.d/<name>",
     "keyring-home": "<home>/<name>",
     "root": "<root>/<name>"
   },
+  "invariant_rules": {
+    "has-finding": "at least one finding for the specimen, in every profile",
+    "not-hardware-stub": "no finding classifies the specimen as hardware-stub",
+    "unsafe-every-profile": "at least one unsafe finding, in every profile",
+    "guardread-refuse": "guardread refuses with empty stdout",
+    "guardread-pass": "guardread passes",
+    "no-secret-exposure": "no finding reports exposure secret",
+    "no-finding": "no finding for the specimen, in every profile"
+  },
   "class_invariants": {
     "plaintext": [
-      "never classification hardware-stub",
-      "never no-finding",
-      "never guardread pass",
-      "unsafe in every profile"
+      "has-finding",
+      "not-hardware-stub",
+      "unsafe-every-profile",
+      "guardread-refuse"
     ],
     "protected": [
-      "never classification hardware-stub",
-      "never no-finding",
-      "never guardread pass"
+      "has-finding",
+      "not-hardware-stub",
+      "guardread-refuse"
     ],
     "malformed": [
-      "never classification hardware-stub",
-      "never no-finding",
-      "never guardread pass",
-      "unsafe in every profile"
+      "has-finding",
+      "not-hardware-stub",
+      "unsafe-every-profile",
+      "guardread-refuse"
     ],
     "hardware-stub": [
-      "never exposure secret",
-      "guardread refuse"
+      "has-finding",
+      "no-secret-exposure",
+      "guardread-refuse"
     ],
     "benign": [
-      "no finding",
-      "guardread pass"
+      "no-finding",
+      "guardread-pass"
+    ],
+    "keyring-internal": [
+      "has-finding"
     ]
   },
   "fixtures": {
@@ -515,6 +534,19 @@
       },
       "guardread": "refuse",
       "sha256": "b30605f152658aabb5fa6f8035602f6cff5a7d28fcc4574d5bc7fbe034004889"
+    },
+    "stub/copied-outside-home.key": {
+      "class": "hardware-stub",
+      "placement": "root",
+      "expect": {
+        "code": "GPG-AGENT-SHADOWED-KEY",
+        "severity": {
+          "artifact": "warn",
+          "workstation": "info"
+        }
+      },
+      "guardread": "refuse",
+      "sha256": "e3b7a47a11cb0c77277c7997ce7a3ad23fcb9d8a40ffcf1f4938b427a58cbb3d"
     },
     "stub/gnupg24-ed25519-card.key": {
       "class": "hardware-stub",

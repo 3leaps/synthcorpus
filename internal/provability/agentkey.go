@@ -21,10 +21,12 @@ type AgentKeyFixture struct {
 
 // AgentKeyManifest is the subset of the verdict manifest provability needs.
 type AgentKeyManifest struct {
-	SchemaVersion string                     `json:"schema_version"`
-	Kind          string                     `json:"kind"`
-	FixturesRoot  string                     `json:"fixtures_root"`
-	Fixtures      map[string]AgentKeyFixture `json:"fixtures"`
+	SchemaVersion   string                     `json:"schema_version"`
+	Kind            string                     `json:"kind"`
+	FixturesRoot    string                     `json:"fixtures_root"`
+	InvariantRules  map[string]string          `json:"invariant_rules"`
+	ClassInvariants map[string][]string        `json:"class_invariants"`
+	Fixtures        map[string]AgentKeyFixture `json:"fixtures"`
 }
 
 // AgentKeyFixturesRoot resolves the committed fixtures-agent/ directory.

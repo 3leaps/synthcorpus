@@ -147,3 +147,31 @@ func isAgentTokenHex(h string) bool {
 	}
 	return false
 }
+
+// TestAgentKeyClassInvariantsUseDeclaredRules asserts every class has
+// invariants, every invariant names a declared rule, and every fixture class
+// has invariants.
+func TestAgentKeyClassInvariantsUseDeclaredRules(t *testing.T) {
+	m, err := LoadAgentKeyManifest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(m.InvariantRules) == 0 {
+		t.Fatal("manifest declares no invariant rules")
+	}
+	for class, rules := range m.ClassInvariants {
+		if len(rules) == 0 {
+			t.Errorf("class %s has no invariants", class)
+		}
+		for _, rule := range rules {
+			if _, ok := m.InvariantRules[rule]; !ok {
+				t.Errorf("class %s names undeclared rule %q", class, rule)
+			}
+		}
+	}
+	for rel, f := range m.Fixtures {
+		if _, ok := m.ClassInvariants[f.Class]; !ok {
+			t.Errorf("%s: class %q has no invariants", rel, f.Class)
+		}
+	}
+}
