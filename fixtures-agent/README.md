@@ -24,3 +24,19 @@ from any detector's output.
 
 This directory sits outside `fixtures/` so the existing fingerprint golden is
 unchanged. Changing a file means updating its manifest digest deliberately.
+
+## Manifest semantics (v0)
+
+- **Profiles:** every severity map names exactly `artifact` and `workstation`.
+- **Expectations:** `expect` is the primary expected finding, or `null` for no
+  primary expectation. `also_expect` lists further expected findings and is
+  additive. When `expect` is `null` and `also_expect` is empty, the specimen
+  must produce **no** findings. Otherwise the specimen must produce exactly the
+  listed findings, one per entry, and no others.
+- **Vocabulary:** `placements`, classes, and `invariant_rules` are closed sets
+  owned by this repository and versioned with the manifest. A consumer rejects
+  values it does not support. Changing a rule's meaning requires a new rule ID
+  or a new contract version, followed by consumer review and a pin bump.
+- **Boundary:** a consumer's check that its rule names match this manifest
+  proves name parity only. That a rule's implementation matches its stated
+  meaning is shown by the consumer's own negative controls.
