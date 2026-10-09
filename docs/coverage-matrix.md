@@ -29,6 +29,7 @@ Legend: **C** = committed-synthetic · **R** = generated-real-only
 | **gpg** | valid public / private / multi-key bundle / detach-sig | **R** | Real OpenPGP packets. |
 | **gpg** | passphrase-protected secret (S2K) | **R** | Real protection metadata. |
 | **malformed** | truncated / edge specimens (cross-kind) | **C** | Explicit fail-closed detector paths. |
+| **gpg-agent** | plaintext, protected, hardware-stub, malformed, benign, keyring-internal (`fixtures-agent/`) | **C** | Placeholder parameters only. Expected verdicts per profile in `manifests/decernor-scan-verdicts.json`. |
 
 ## Inventory authority
 
