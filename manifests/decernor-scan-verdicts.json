@@ -1,0 +1,604 @@
+{
+  "schema_version": "v0",
+  "kind": "synthcorpus-decernor-scan-verdicts",
+  "material_lane": "committed-synthetic",
+  "fixtures_root": "fixtures-agent",
+  "expectation_source": "GnuPG doc/keyformat.txt agent key forms; fixture class intent. Not derived from detector output.",
+  "expectation_provenance": {
+    "class": "format fact: each specimen's key form per doc/keyformat.txt, or a declared ambiguity that must fail closed",
+    "code": "detector contract: the finding code decernor documents for that class",
+    "severity": "policy judgement: per-profile severity from decernor's documented profile table, not from the format specification",
+    "guardread": "policy judgement: key-shaped content of any class is refused"
+  },
+  "placements": {
+    "agent-key-dir": "<home>/private-keys-v1.d/<name>",
+    "keyring-home": "<home>/<name>",
+    "root": "<root>/<name>"
+  },
+  "invariant_rules": {
+    "has-finding": "at least one finding for the specimen, in every profile",
+    "not-hardware-stub": "no finding classifies the specimen as hardware-stub",
+    "unsafe-every-profile": "at least one unsafe finding, in every profile",
+    "guardread-refuse": "guardread refuses with empty stdout",
+    "guardread-pass": "guardread passes",
+    "no-secret-exposure": "no finding reports exposure secret",
+    "no-finding": "no finding for the specimen, in every profile"
+  },
+  "class_invariants": {
+    "plaintext": [
+      "has-finding",
+      "not-hardware-stub",
+      "unsafe-every-profile",
+      "guardread-refuse"
+    ],
+    "protected": [
+      "has-finding",
+      "not-hardware-stub",
+      "guardread-refuse"
+    ],
+    "malformed": [
+      "has-finding",
+      "not-hardware-stub",
+      "unsafe-every-profile",
+      "guardread-refuse"
+    ],
+    "hardware-stub": [
+      "has-finding",
+      "no-secret-exposure",
+      "guardread-refuse"
+    ],
+    "benign": [
+      "no-finding",
+      "guardread-pass"
+    ],
+    "keyring-internal": [
+      "has-finding"
+    ]
+  },
+  "fixtures": {
+    "benign/json-mention.json": {
+      "class": "benign",
+      "placement": "root",
+      "expect": null,
+      "guardread": "pass",
+      "sha256": "ef28ca896f8056c29ab5f3175324d5f45a6542b4193cb984f42cca290a204271"
+    },
+    "benign/other-sexp.txt": {
+      "class": "benign",
+      "placement": "root",
+      "expect": null,
+      "guardread": "pass",
+      "sha256": "e207b7d70f51b5c2f297eb547aafeff7ef0708258dd28136661e4a7a6e41865a"
+    },
+    "benign/prose-key-dir.md": {
+      "class": "benign",
+      "placement": "root",
+      "expect": null,
+      "guardread": "pass",
+      "sha256": "6305daec4e78733fa35b9a30ed482d6d43a33093cdb9f8111d44f3c245ed9034"
+    },
+    "benign/yaml-key-lines.yaml": {
+      "class": "benign",
+      "placement": "root",
+      "expect": null,
+      "guardread": "pass",
+      "sha256": "b7d7381ee500d82ca593a5782c92eb79274abdf700f8459a2fc3be5aedca7775"
+    },
+    "keyring/gpg-agent.conf": {
+      "class": "keyring-internal",
+      "placement": "keyring-home",
+      "expect": {
+        "code": "GPG-KEYRING-INTERNAL-FILE",
+        "severity": {
+          "artifact": "unsafe",
+          "workstation": "info"
+        }
+      },
+      "guardread": "pass",
+      "sha256": "1c90d4b23cd683bb19c8648e6f56665b4da7d3bf8c92acf5c4d727956e94a1ed"
+    },
+    "keyring/pubring.kbx": {
+      "class": "keyring-internal",
+      "placement": "keyring-home",
+      "expect": {
+        "code": "GPG-KEYRING-INTERNAL-FILE",
+        "severity": {
+          "artifact": "unsafe",
+          "workstation": "info"
+        }
+      },
+      "guardread": "refuse",
+      "also_expect": [
+        {
+          "code": "GPG-AGENT-UNPROTECTED-KEY",
+          "severity": {
+            "artifact": "unsafe",
+            "workstation": "unsafe"
+          }
+        }
+      ],
+      "sha256": "f00ca808c9168d963f4bbf65df5f17112c319b934c42a991589145e46541d3c0"
+    },
+    "malformed/blank-then-continuation.key": {
+      "class": "malformed",
+      "placement": "agent-key-dir",
+      "expect": {
+        "code": "GPG-AGENT-KEY-UNRECOGNIZED",
+        "severity": {
+          "artifact": "unsafe",
+          "workstation": "unsafe"
+        }
+      },
+      "guardread": "refuse",
+      "sha256": "84a946daaa8f0b00c793f831a18aa1f50974e6a5a75e465fdfaa6c014831b2d6"
+    },
+    "malformed/huge-canonical-length.key": {
+      "class": "malformed",
+      "placement": "agent-key-dir",
+      "expect": {
+        "code": "GPG-AGENT-KEY-UNRECOGNIZED",
+        "severity": {
+          "artifact": "unsafe",
+          "workstation": "unsafe"
+        }
+      },
+      "guardread": "refuse",
+      "sha256": "8640b0cf25f2bc997fa04b5fb783c10bbca8980b5a5ad59261072163f5e157ba"
+    },
+    "malformed/plaintext-in-comment.key": {
+      "class": "malformed",
+      "placement": "agent-key-dir",
+      "expect": {
+        "code": "GPG-AGENT-KEY-UNRECOGNIZED",
+        "severity": {
+          "artifact": "unsafe",
+          "workstation": "unsafe"
+        }
+      },
+      "guardread": "refuse",
+      "sha256": "64eb961ab82a99cf27e92d59abea527854afe78ed9b0f7ab895580a2c1f7f429"
+    },
+    "malformed/plaintext-in-label.key": {
+      "class": "malformed",
+      "placement": "agent-key-dir",
+      "expect": {
+        "code": "GPG-AGENT-KEY-UNRECOGNIZED",
+        "severity": {
+          "artifact": "unsafe",
+          "workstation": "unsafe"
+        }
+      },
+      "guardread": "refuse",
+      "sha256": "a003b4308fa2ad1f0d1c70b23510a6a9a9a67b43caff6585574178d4dd118b62"
+    },
+    "malformed/preamble-line.key": {
+      "class": "malformed",
+      "placement": "agent-key-dir",
+      "expect": {
+        "code": "GPG-AGENT-KEY-UNRECOGNIZED",
+        "severity": {
+          "artifact": "unsafe",
+          "workstation": "unsafe"
+        }
+      },
+      "guardread": "refuse",
+      "sha256": "9ec4d0a1a1360d75fd96c6b4e5cc67cbf73834aed05094e5bd454899f73358ce"
+    },
+    "malformed/protected-hex-secret-param.key": {
+      "class": "malformed",
+      "placement": "agent-key-dir",
+      "expect": {
+        "code": "GPG-AGENT-KEY-UNRECOGNIZED",
+        "severity": {
+          "artifact": "unsafe",
+          "workstation": "unsafe"
+        }
+      },
+      "guardread": "refuse",
+      "sha256": "8281ebb71b440b29e8801d1a0e84440ff4e4ff1f9bfc87ee67d24d5bc9e338ed"
+    },
+    "malformed/rsa-stub-with-prime.key": {
+      "class": "malformed",
+      "placement": "agent-key-dir",
+      "expect": {
+        "code": "GPG-AGENT-KEY-UNRECOGNIZED",
+        "severity": {
+          "artifact": "unsafe",
+          "workstation": "unsafe"
+        }
+      },
+      "guardread": "refuse",
+      "sha256": "d02155751308ea1edc2054895a80d3ae8399fc03d0863e6a9e6a02b8ce5b0e3d"
+    },
+    "malformed/stub-base64-secret-param.key": {
+      "class": "malformed",
+      "placement": "agent-key-dir",
+      "expect": {
+        "code": "GPG-AGENT-KEY-UNRECOGNIZED",
+        "severity": {
+          "artifact": "unsafe",
+          "workstation": "unsafe"
+        }
+      },
+      "guardread": "refuse",
+      "sha256": "df472b8507face81e461aaaf28ab3b18b85054075ad011f3a1ffedfb2650f045"
+    },
+    "malformed/stub-hex-secret-param.key": {
+      "class": "malformed",
+      "placement": "agent-key-dir",
+      "expect": {
+        "code": "GPG-AGENT-KEY-UNRECOGNIZED",
+        "severity": {
+          "artifact": "unsafe",
+          "workstation": "unsafe"
+        }
+      },
+      "guardread": "refuse",
+      "sha256": "cb8097f17a44638db6116b12e3903e15492e08a88fc42afcc83f3f215893e708"
+    },
+    "malformed/stub-past-prefix-plaintext-canonical.key": {
+      "class": "malformed",
+      "placement": "agent-key-dir",
+      "expect": {
+        "code": "GPG-AGENT-KEY-UNRECOGNIZED",
+        "severity": {
+          "artifact": "unsafe",
+          "workstation": "unsafe"
+        }
+      },
+      "guardread": "refuse",
+      "sha256": "157052385b90b9ce00dd9c6db7b007093cfab0a76b6d46abfa6c73fd71ff2c87"
+    },
+    "malformed/stub-past-prefix-plaintext.key": {
+      "class": "malformed",
+      "placement": "agent-key-dir",
+      "expect": {
+        "code": "GPG-AGENT-UNPROTECTED-KEY",
+        "severity": {
+          "artifact": "unsafe",
+          "workstation": "unsafe"
+        }
+      },
+      "guardread": "refuse",
+      "sha256": "1b8de37958ce468d06ae7fc4c61fb7b843e8ee13d5ee26cafcd52ca64d229d69"
+    },
+    "malformed/stub-unknown-algorithm.key": {
+      "class": "malformed",
+      "placement": "agent-key-dir",
+      "expect": {
+        "code": "GPG-AGENT-KEY-UNRECOGNIZED",
+        "severity": {
+          "artifact": "unsafe",
+          "workstation": "unsafe"
+        }
+      },
+      "guardread": "refuse",
+      "sha256": "77c2a35cf97c0b5f2a805cb784e91e62c76ddea20d475d1f3a67d25f4fe3abde"
+    },
+    "malformed/stub-with-secret-param.key": {
+      "class": "malformed",
+      "placement": "agent-key-dir",
+      "expect": {
+        "code": "GPG-AGENT-KEY-UNRECOGNIZED",
+        "severity": {
+          "artifact": "unsafe",
+          "workstation": "unsafe"
+        }
+      },
+      "guardread": "refuse",
+      "sha256": "e66e843c4c79922b5bf9a888b876db3c2ef5a915884f88789538285aaad615b5"
+    },
+    "malformed/trailing-after-stub.key": {
+      "class": "malformed",
+      "placement": "agent-key-dir",
+      "expect": {
+        "code": "GPG-AGENT-KEY-UNRECOGNIZED",
+        "severity": {
+          "artifact": "unsafe",
+          "workstation": "unsafe"
+        }
+      },
+      "guardread": "refuse",
+      "sha256": "bdeba5d79bb85ed9fc7aeeeb3d0eacf9ef274e92d7c4d9855989b22e74c57197"
+    },
+    "malformed/two-stub-items.key": {
+      "class": "malformed",
+      "placement": "agent-key-dir",
+      "expect": {
+        "code": "GPG-AGENT-KEY-UNRECOGNIZED",
+        "severity": {
+          "artifact": "unsafe",
+          "workstation": "unsafe"
+        }
+      },
+      "guardread": "refuse",
+      "sha256": "f44908cb0604abe1eefa2f3036a2ba31ae8402e0d6adbf3a0abf47aad180a57c"
+    },
+    "malformed/unparseable.key": {
+      "class": "malformed",
+      "placement": "agent-key-dir",
+      "expect": {
+        "code": "GPG-AGENT-KEY-UNRECOGNIZED",
+        "severity": {
+          "artifact": "unsafe",
+          "workstation": "unsafe"
+        }
+      },
+      "guardread": "refuse",
+      "sha256": "0470a7a41d1ef0323c6c84ce509ea048d65d879e5b435a8298d20e77d182e8c1"
+    },
+    "plaintext/base64-outer-token.key": {
+      "class": "plaintext",
+      "placement": "agent-key-dir",
+      "expect": {
+        "code": "GPG-AGENT-UNPROTECTED-KEY",
+        "severity": {
+          "artifact": "unsafe",
+          "workstation": "unsafe"
+        }
+      },
+      "guardread": "refuse",
+      "sha256": "dbbaa0c4e2cf53458abf0229fc8f93d678bda3ce399e60b4cfa99703edd245e6"
+    },
+    "plaintext/bom-prefixed.key": {
+      "class": "plaintext",
+      "placement": "agent-key-dir",
+      "expect": {
+        "code": "GPG-AGENT-UNPROTECTED-KEY",
+        "severity": {
+          "artifact": "unsafe",
+          "workstation": "unsafe"
+        }
+      },
+      "guardread": "refuse",
+      "sha256": "bcf40dee885b6cb6189ac046c757cda95906fc0cd092517192219d4860273fa4"
+    },
+    "plaintext/canonical-rsa.key": {
+      "class": "plaintext",
+      "placement": "agent-key-dir",
+      "expect": {
+        "code": "GPG-AGENT-UNPROTECTED-KEY",
+        "severity": {
+          "artifact": "unsafe",
+          "workstation": "unsafe"
+        }
+      },
+      "guardread": "refuse",
+      "sha256": "2c4adef05f5873c5f45b2a41966b12fcd2870937f6d3014d4c9dcb31c13edc2e"
+    },
+    "plaintext/cr-only-lines.key": {
+      "class": "plaintext",
+      "placement": "agent-key-dir",
+      "expect": {
+        "code": "GPG-AGENT-UNPROTECTED-KEY",
+        "severity": {
+          "artifact": "unsafe",
+          "workstation": "unsafe"
+        }
+      },
+      "guardread": "refuse",
+      "sha256": "a036609bf8d043af10ee09befb79e4ceae69b8e0c006710e51cb44de84372871"
+    },
+    "plaintext/display-hint-outer.key": {
+      "class": "plaintext",
+      "placement": "agent-key-dir",
+      "expect": {
+        "code": "GPG-AGENT-UNPROTECTED-KEY",
+        "severity": {
+          "artifact": "unsafe",
+          "workstation": "unsafe"
+        }
+      },
+      "guardread": "refuse",
+      "sha256": "08efaf3753255f4f9feef75f6e1e52d98e4c5f3d2d1301b80ea9831c3db88701"
+    },
+    "plaintext/extended-ecc.key": {
+      "class": "plaintext",
+      "placement": "agent-key-dir",
+      "expect": {
+        "code": "GPG-AGENT-UNPROTECTED-KEY",
+        "severity": {
+          "artifact": "unsafe",
+          "workstation": "unsafe"
+        }
+      },
+      "guardread": "refuse",
+      "sha256": "dd7b545ef33d8ceb79c5e33a871d52aabd9e25c413770ef17fabf65846fd7244"
+    },
+    "plaintext/formfeed-prefixed.key": {
+      "class": "plaintext",
+      "placement": "agent-key-dir",
+      "expect": {
+        "code": "GPG-AGENT-UNPROTECTED-KEY",
+        "severity": {
+          "artifact": "unsafe",
+          "workstation": "unsafe"
+        }
+      },
+      "guardread": "refuse",
+      "sha256": "77bfe3911cdfc0a0b5ce9234c2bb1e47ad59a45d9e973265612a8ccec8c82427"
+    },
+    "plaintext/hex-outer-token.key": {
+      "class": "plaintext",
+      "placement": "agent-key-dir",
+      "expect": {
+        "code": "GPG-AGENT-UNPROTECTED-KEY",
+        "severity": {
+          "artifact": "unsafe",
+          "workstation": "unsafe"
+        }
+      },
+      "guardread": "refuse",
+      "sha256": "0c9eba7cdae49a4332c6c8b7dcea1b06785bf77e18e8561f61c58d1e8b94f049"
+    },
+    "plaintext/nested-in-stub.key": {
+      "class": "plaintext",
+      "placement": "agent-key-dir",
+      "expect": {
+        "code": "GPG-AGENT-UNPROTECTED-KEY",
+        "severity": {
+          "artifact": "unsafe",
+          "workstation": "unsafe"
+        }
+      },
+      "guardread": "refuse",
+      "sha256": "82d7b95b2d396b545055acff0af3a3e0504183080404421ce05f3eafdad32d9a"
+    },
+    "plaintext/one-space-wrapped-token.key": {
+      "class": "plaintext",
+      "placement": "agent-key-dir",
+      "expect": {
+        "code": "GPG-AGENT-UNPROTECTED-KEY",
+        "severity": {
+          "artifact": "unsafe",
+          "workstation": "unsafe"
+        }
+      },
+      "guardread": "refuse",
+      "sha256": "b2b53a676e50f6a7af120131b5073a5c55c161f0b5e279ffeb4a0092d0ffb314"
+    },
+    "plaintext/past-prefix-off-path.txt": {
+      "class": "plaintext",
+      "placement": "root",
+      "expect": {
+        "code": "GPG-AGENT-UNPROTECTED-KEY",
+        "severity": {
+          "artifact": "unsafe",
+          "workstation": "unsafe"
+        }
+      },
+      "guardread": "refuse",
+      "sha256": "abb77962179061ec119a7aa959b336acff42583695c2def8ea6dd244a27ca3e5"
+    },
+    "plaintext/past-prefix-wrapped-off-path.txt": {
+      "class": "plaintext",
+      "placement": "root",
+      "expect": {
+        "code": "GPG-AGENT-UNPROTECTED-KEY",
+        "severity": {
+          "artifact": "unsafe",
+          "workstation": "unsafe"
+        }
+      },
+      "guardread": "refuse",
+      "sha256": "cde5ce3b13eb706964067f2d49e21b5a9fab52b4aef4e163fbaba2e71a7da4ce"
+    },
+    "plaintext/stub-then-plaintext-item.key": {
+      "class": "plaintext",
+      "placement": "agent-key-dir",
+      "expect": {
+        "code": "GPG-AGENT-UNPROTECTED-KEY",
+        "severity": {
+          "artifact": "unsafe",
+          "workstation": "unsafe"
+        }
+      },
+      "guardread": "refuse",
+      "sha256": "2594d12708cc2dbda04e170c971b6ed411c6c348a41dd4e75b7529519ec7f98c"
+    },
+    "protected/canonical-rsa.key": {
+      "class": "protected",
+      "placement": "agent-key-dir",
+      "expect": {
+        "code": "GPG-AGENT-PROTECTED-KEY",
+        "severity": {
+          "artifact": "warn",
+          "workstation": "warn"
+        }
+      },
+      "guardread": "refuse",
+      "sha256": "765ddd4e0d827a504d6d0741530b479ebc6b9aef68b604513cb76155eff0b7b5"
+    },
+    "protected/extended-ecc.key": {
+      "class": "protected",
+      "placement": "agent-key-dir",
+      "expect": {
+        "code": "GPG-AGENT-PROTECTED-KEY",
+        "severity": {
+          "artifact": "warn",
+          "workstation": "warn"
+        }
+      },
+      "guardread": "refuse",
+      "sha256": "db6a084e1513db11d85f7edf293e9c75655cf4ff441a3b2034779c663b52bbf9"
+    },
+    "stub/canonical-rsa-card.key": {
+      "class": "hardware-stub",
+      "placement": "agent-key-dir",
+      "expect": {
+        "code": "GPG-AGENT-SHADOWED-KEY",
+        "severity": {
+          "artifact": "warn",
+          "workstation": "info"
+        }
+      },
+      "guardread": "refuse",
+      "sha256": "b30605f152658aabb5fa6f8035602f6cff5a7d28fcc4574d5bc7fbe034004889"
+    },
+    "stub/copied-outside-home.key": {
+      "class": "hardware-stub",
+      "placement": "root",
+      "expect": {
+        "code": "GPG-AGENT-SHADOWED-KEY",
+        "severity": {
+          "artifact": "warn",
+          "workstation": "info"
+        }
+      },
+      "guardread": "refuse",
+      "sha256": "e3b7a47a11cb0c77277c7997ce7a3ad23fcb9d8a40ffcf1f4938b427a58cbb3d"
+    },
+    "stub/gnupg24-ed25519-card.key": {
+      "class": "hardware-stub",
+      "placement": "agent-key-dir",
+      "expect": {
+        "code": "GPG-AGENT-SHADOWED-KEY",
+        "severity": {
+          "artifact": "warn",
+          "workstation": "info"
+        }
+      },
+      "guardread": "refuse",
+      "sha256": "129e1669fcfdeed1d8f0deadfe93b1b151e4e70e99e42103b5a42e0399e14d20"
+    },
+    "stub/gnupg24-rsa-card.key": {
+      "class": "hardware-stub",
+      "placement": "agent-key-dir",
+      "expect": {
+        "code": "GPG-AGENT-SHADOWED-KEY",
+        "severity": {
+          "artifact": "warn",
+          "workstation": "info"
+        }
+      },
+      "guardread": "refuse",
+      "sha256": "ff528fb0afd512d9b19782416dee8cd140e6e8da41fc3aca3d7fa6eefaf28832"
+    },
+    "stub/multi-space-continuation.key": {
+      "class": "hardware-stub",
+      "placement": "agent-key-dir",
+      "expect": {
+        "code": "GPG-AGENT-SHADOWED-KEY",
+        "severity": {
+          "artifact": "warn",
+          "workstation": "info"
+        }
+      },
+      "guardread": "refuse",
+      "sha256": "b52ad8156b83da6188021ad822230cdc9ebff46446042323a981e9788f501cfb"
+    },
+    "stub/tpm2.key": {
+      "class": "hardware-stub",
+      "placement": "agent-key-dir",
+      "expect": {
+        "code": "GPG-AGENT-SHADOWED-KEY",
+        "severity": {
+          "artifact": "warn",
+          "workstation": "info"
+        }
+      },
+      "guardread": "refuse",
+      "sha256": "105333916b3cbcd0b5f803388c5f894acfe5e0b6e38aa7f2d96341a6d7c56c53"
+    }
+  }
+}

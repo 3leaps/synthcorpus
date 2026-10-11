@@ -1,0 +1,2 @@
+# Byte-exact line-ending specimen: compare as binary.
+fixtures-agent/plaintext/cr-only-lines.key -text -diff

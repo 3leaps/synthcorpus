@@ -7,6 +7,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Changed
+
+- The minimum Go version is 1.26.9.
+
 ## [0.1.5] - 2026-09-24
 
 ### Changed
