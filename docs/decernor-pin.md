@@ -8,9 +8,9 @@ worktree path, never a Go module import from decernor into synthcorpus.
 | Field | Value |
 |-------|-------|
 | Source | https://github.com/3leaps/decernor |
-| Min version | `0.1.8` |
-| Preferred tag | `v0.1.8` |
-| Preferred commit | `08c0afc` (commit peeled from the annotated tag; fingerprint contracts remain separate) |
+| Min version | `0.1.9` |
+| Preferred tag | `v0.1.9` |
+| Preferred commit | `43f57d9` (commit peeled from the annotated tag; fingerprint contracts remain separate) |
 | Machine pin file | [`manifests/decernor-pin.json`](../manifests/decernor-pin.json) |
 
 The **tag** is the locate contract. `preferred_commit` records the tagged
@@ -35,8 +35,8 @@ Verify identity with extended version output (never parse secret material):
 
 ```sh
 "$THREELEAPS_SYNTHCORPUS_DECERNOR_BIN" version -e
-# Version: 0.1.8
-# Commit:  08c0afc
+# Version: 0.1.9
+# Commit:  43f57d9
 ```
 
 Package helper: `internal/decernorloc` (`Locate`, `ReadIdentity`, `CheckPin`).
@@ -48,8 +48,9 @@ Empty/`unknown` commits and malformed versions fail closed.
 |------|----------|
 | Committed-synthetic | Raw NDJSON bytes match `manifests/decernor-fingerprint-v0.ndjson`; manifest header fixes relative paths, stable ordering, timestamp absence, record count, and digest |
 | Generated-real | Transient output satisfies schema, count/scheme, canonical encoding, null+reason, and relative-path properties; no random fingerprint is persisted |
+| Agent key verdicts | Each `fixtures-agent/` specimen, staged at its declared placement, yields exactly the findings `manifests/decernor-scan-verdicts.json` expects per profile, the expected `guardread` verdict, and every rule its class declares |
 
-Run both against the declared binary:
+Run all three against the declared binary:
 
 ```sh
 THREELEAPS_SYNTHCORPUS_DECERNOR_BIN=/absolute/path/to/decernor make contract

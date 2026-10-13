@@ -7,8 +7,30 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Added
+
+- GnuPG agent key specimens under `fixtures-agent/`: plaintext,
+  passphrase-protected, hardware shadow stub, malformed, keyring-internal, and
+  benign look-alikes. Every key parameter is a placeholder.
+- `manifests/decernor-scan-verdicts.json` (v0): the expected Decernor `scan`
+  verdict per profile and `guardread` verdict for each specimen, with declared
+  class invariants. Expectations come from the key format and class intent,
+  not from detector output.
+- A Decernor verdict contract lane (`make verdict-check`, part of
+  `make contract`) runs the pinned binary over every specimen at its declared
+  placement and checks the manifest's findings, guardread verdicts, and class
+  invariants.
+
 ### Changed
 
+- The Decernor consumer contract pins published `v0.1.9` at peeled commit
+  `43f57d9`.
+- The generated-real property contract expects 23 records (11 OpenPGP). Decernor
+  v0.1.9 reports the two agent key files in the generated GnuPG home as
+  `unsupported-kind` with no fingerprint. A new
+  `required_null_directory_records` property fails the contract if any record
+  in that directory carries a fingerprint; file names there vary per
+  generation, so only the directory is pinned.
 - The minimum Go version is 1.26.9.
 
 ## [0.1.5] - 2026-09-24

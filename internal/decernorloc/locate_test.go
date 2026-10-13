@@ -184,7 +184,7 @@ func TestLoadPinRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if pin.MinVersion != "0.1.8" || pin.PreferredTag != "v0.1.8" || pin.PreferredCommit != "08c0afc" {
+	if pin.MinVersion != "0.1.9" || pin.PreferredTag != "v0.1.9" || pin.PreferredCommit != "43f57d9" {
 		t.Fatalf("pin = %#v", pin)
 	}
 	if pin.Locate.Env != EnvBinary {
