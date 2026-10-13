@@ -41,7 +41,7 @@ for 3 Leaps detectors (decernor first). Real-shaped, never real.
 make test               # pure-Go unit tests (all platforms; no external tools)
 make gitleaks           # scanner config + hermetic canaries (requires gitleaks)
 make provability        # helper-backed proofs (requires gpg/minisign/ssh-keygen)
-make contract           # exact synthetic golden + property-only generated-real checks
+make contract           # exact synthetic golden, agent key verdicts, property-only generated-real checks
 make check-all          # fmt + test + build + scanners + proofs + contract + diff --check
 make build
 ```

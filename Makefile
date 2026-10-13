@@ -24,6 +24,7 @@ help:
 		'  gitleaks          Scanner gate: CLI detect + hermetic canary tests (needs gitleaks)' \
 		'  provability       Helper-backed negative-crypto proofs (needs gpg/minisign/ssh-keygen)' \
 		'  drift-check       Exact committed-synthetic decernor golden check (needs pinned decernor)' \
+		'  verdict-check     Agent key scan and guardread verdicts (needs pinned decernor)' \
 		'  generated-real-check  Property-only dogfood check (needs pinned decernor + sidecars)' \
 		'  contract          Run both decernor consumer-contract lanes' \
 		'  check-all         fmt + tests + build + scanners + proofs + contract + diff --check' \
@@ -75,7 +76,10 @@ drift-check:
 generated-real-check:
 	go test -tags=contract,sidecars ./internal/decernorcontract/ -run '^TestGeneratedRealProperties$$' -count=1
 
-contract: drift-check generated-real-check
+verdict-check:
+	go test -tags=contract ./internal/decernorcontract/ -run '^TestScanVerdicts$$' -count=1
+
+contract: drift-check verdict-check generated-real-check
 
 check-all: fmt test policy release-control-test build gitleaks provability contract
 	@git diff --check
