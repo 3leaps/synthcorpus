@@ -4,6 +4,45 @@ This file contains release notes for up to the three most recent releases in rev
 
 ---
 
+## v0.1.6 (2026-10-13)
+
+**GnuPG agent key specimens and a Decernor verdict contract**
+
+synthcorpus v0.1.6 adds committed-synthetic GnuPG agent key specimens, an
+expected-verdict manifest for them, and a contract lane that checks a pinned
+Decernor binary against that manifest. The Decernor pin moves to `v0.1.9`.
+
+### Highlights
+
+- `fixtures-agent/` holds placeholder-only agent key specimens: plaintext,
+  passphrase-protected, smartcard and TPM shadow stubs, malformed forms,
+  keyring-internal files, and benign look-alikes.
+- `manifests/decernor-scan-verdicts.json` (v0) gives each specimen's class,
+  placement, expected `scan` finding per profile, and expected `guardread`
+  verdict. Expectations come from the key format and class intent, not from
+  detector output.
+- `make verdict-check`, part of `make contract`, runs the pinned binary over
+  every specimen and checks the expected findings, guardread verdicts, and
+  class rules.
+- The generated-real contract expects Decernor v0.1.9's two null
+  `unsupported-kind` agent key records and fails if either carries a
+  fingerprint.
+- The minimum Go version is 1.26.9. Repository and both generators report
+  version `0.1.6`.
+
+### Governing invariant
+
+Generated-real material never enters the repository. Only registered,
+provably unusable committed-synthetic specimens are committed.
+
+### Compatibility
+
+Consumer contract callers must supply a Decernor binary satisfying
+`manifests/decernor-pin.json` (`v0.1.9` / `43f57d9`).
+
+See [docs/releases/v0.1.6.md](docs/releases/v0.1.6.md) for the complete release
+narrative.
+
 ## v0.1.5 (2026-09-24)
 
 **Decernor v0.1.8 consumer pin and binary lookup order**
@@ -69,40 +108,4 @@ No migration is required. Consumer contract callers must supply a Decernor
 binary satisfying `manifests/decernor-pin.json` (`v0.1.7` / `70efa26`).
 
 See [docs/releases/v0.1.4.md](docs/releases/v0.1.4.md) for the complete release
-narrative.
-
-## v0.1.3 (2026-08-25)
-
-**Decernor v0.1.5 pin and public baseline**
-
-synthcorpus v0.1.3 pins the Decernor consumer contract to tagged `v0.1.5`,
-adds link-only community stubs, and cleans public examples so they do not
-advertise a host layout path. Generated-real material still never enters Git.
-Releases remain signed tags plus notes. Early scaffold commits are historical;
-the current tree is the public contract.
-
-### Highlights
-
-- **Decernor consumer pin is tagged `v0.1.5`.** Machine pin and docs name
-  `0.1.5` / `v0.1.5` / `5dfd574`. Exact committed-synthetic fingerprint
-  goldens track that binary. Fingerprint output is unchanged from the prior
-  tagged cut; goldens are not rewritten. Locate remains `DECERNOR_BIN` / PATH.
-- Link-only `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md`, and `SECURITY.md` point at
-  `3leaps/oss-policies` (no forked policy bodies).
-- Generator help and public examples use `--out /path/to/isolated-root` or
-  `$SYNTHCORPUS_OUT`; they no longer advertise a host path.
-- Repository and generator report version `0.1.3`. No-publish posture is
-  unchanged: no prebuilt generator binary or attached corpus bundle.
-
-### Governing invariant
-
-Generated-real material never enters the repository. Only registered,
-provably unusable committed-synthetic specimens live under `fixtures/`.
-
-### Compatibility
-
-No migration is required. Consumer contract callers must supply a Decernor
-binary that satisfies `manifests/decernor-pin.json` (`v0.1.5` / `5dfd574`).
-
-See [docs/releases/v0.1.3.md](docs/releases/v0.1.3.md) for the complete release
 narrative.
