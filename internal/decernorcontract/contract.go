@@ -15,6 +15,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	pathpkg "path"
 	"path/filepath"
 	"strings"
 
@@ -109,23 +110,37 @@ type RecordSelector struct {
 	Reason            string `json:"reason"`
 }
 
+// DirectoryNullRecords requires exactly Count records directly under Dir with
+// the given kind, class, scheme, and reason, each with a null fingerprint, and
+// no record under Dir with a fingerprint. File names under Dir may vary per
+// generation, so only the directory is pinned.
+type DirectoryNullRecords struct {
+	Dir               string `json:"dir"`
+	Count             int    `json:"count"`
+	Kind              string `json:"kind"`
+	Class             string `json:"class"`
+	FingerprintScheme string `json:"fingerprint_scheme"`
+	Reason            string `json:"reason"`
+}
+
 type RequiredPathSchemes struct {
 	Path    string   `json:"path"`
 	Schemes []string `json:"schemes"`
 }
 
 type GeneratedProperties struct {
-	SchemaVersion       string                `json:"schema_version"`
-	Kind                string                `json:"kind"`
-	MaterialLane        string                `json:"material_lane"`
-	PinReference        string                `json:"pin_reference"`
-	Invocation          Invocation            `json:"invocation"`
-	ExpectedRecordCount int                   `json:"expected_record_count"`
-	SchemeCounts        map[string]int        `json:"scheme_counts"`
-	ClosedReasons       []string              `json:"closed_reasons"`
-	RequiredNullRecords []RecordSelector      `json:"required_null_records"`
-	RequiredPathSchemes []RequiredPathSchemes `json:"required_path_schemes"`
-	PathPolicy          PathPolicy            `json:"path_policy"`
+	SchemaVersion       string                 `json:"schema_version"`
+	Kind                string                 `json:"kind"`
+	MaterialLane        string                 `json:"material_lane"`
+	PinReference        string                 `json:"pin_reference"`
+	Invocation          Invocation             `json:"invocation"`
+	ExpectedRecordCount int                    `json:"expected_record_count"`
+	SchemeCounts        map[string]int         `json:"scheme_counts"`
+	ClosedReasons       []string               `json:"closed_reasons"`
+	RequiredNullRecords []RecordSelector       `json:"required_null_records"`
+	RequiredNullDirs    []DirectoryNullRecords `json:"required_null_directory_records"`
+	RequiredPathSchemes []RequiredPathSchemes  `json:"required_path_schemes"`
+	PathPolicy          PathPolicy             `json:"path_policy"`
 }
 
 // Record mirrors the public decernor fingerprint v0 NDJSON schema. Unknown
@@ -253,6 +268,11 @@ func validateGeneratedProperties(p GeneratedProperties) error {
 	}
 	if p.PathPolicy != (PathPolicy{Mode: "relative", Separator: "/", AbsolutePaths: "forbidden", ParentTraversal: "forbidden"}) {
 		return fmt.Errorf("unsupported generated-real path policy %#v", p.PathPolicy)
+	}
+	for _, d := range p.RequiredNullDirs {
+		if err := validateRelativePath(d.Dir); err != nil || d.Count <= 0 || d.Kind == "" || d.Class == "" || d.FingerprintScheme == "" || d.Reason == "" {
+			return fmt.Errorf("invalid required null directory records %#v", d)
+		}
 	}
 	return nil
 }
@@ -623,6 +643,11 @@ func ValidateGeneratedRecords(records []Record, p GeneratedProperties) error {
 			return fmt.Errorf("required null record %#v did not match exactly once", selector)
 		}
 	}
+	for _, d := range p.RequiredNullDirs {
+		if err := checkDirectoryNullRecords(records, d); err != nil {
+			return err
+		}
+	}
 	for _, required := range p.RequiredPathSchemes {
 		got := map[string]bool{}
 		for _, record := range records {
@@ -721,6 +746,25 @@ func validateFingerprintEncoding(r Record) error {
 		}
 	default:
 		return fmt.Errorf("unsupported fingerprint scheme %q", r.FingerprintScheme)
+	}
+	return nil
+}
+
+func checkDirectoryNullRecords(records []Record, d DirectoryNullRecords) error {
+	matched := 0
+	for _, r := range records {
+		if pathpkg.Dir(r.Path) != d.Dir {
+			continue
+		}
+		if r.Fingerprint != nil {
+			return fmt.Errorf("record under %s carries a fingerprint", d.Dir)
+		}
+		if r.Kind == d.Kind && r.Class == d.Class && r.FingerprintScheme == d.FingerprintScheme && optionalString(r.Reason) == d.Reason {
+			matched++
+		}
+	}
+	if matched != d.Count {
+		return fmt.Errorf("%d null %s records under %s, want %d", matched, d.Reason, d.Dir, d.Count)
 	}
 	return nil
 }

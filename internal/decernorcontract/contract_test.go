@@ -26,7 +26,7 @@ func TestCommittedManifestsAreStrictAndSelfConsistent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if properties.ExpectedRecordCount != 21 {
+	if properties.ExpectedRecordCount != 23 {
 		t.Fatalf("expected_record_count=%d", properties.ExpectedRecordCount)
 	}
 }
@@ -317,4 +317,68 @@ func repoRoot(t *testing.T) string {
 		t.Fatal("runtime.Caller failed")
 	}
 	return filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
+}
+
+// A fingerprint on an agent key record, or a wrong count, fails the contract.
+func TestDirectoryNullRecordsRejectFingerprints(t *testing.T) {
+	d := DirectoryNullRecords{
+		Dir: ".gnupg/private-keys-v1.d", Count: 2, Kind: "gpg", Class: "private",
+		FingerprintScheme: "openpgp-fingerprint-v1", Reason: "unsupported-kind",
+	}
+	null := func(name string) Record {
+		return Record{Path: d.Dir + "/" + name, Kind: "gpg", Class: "private",
+			FingerprintScheme: "openpgp-fingerprint-v1", Reason: stringPointer("unsupported-kind")}
+	}
+	other := Record{Path: "gpg/public.asc", Kind: "gpg", Class: "public", FingerprintScheme: "openpgp-fingerprint-v1"}
+	if err := checkDirectoryNullRecords([]Record{null("a.key"), null("b.key"), other}, d); err != nil {
+		t.Fatalf("conforming records rejected: %v", err)
+	}
+	value := "0000000000000000000000000000000000000000"
+	fingerprinted := null("b.key")
+	fingerprinted.Fingerprint = &value
+	fingerprinted.Reason = nil
+	wrongReason := null("b.key")
+	wrongReason.Reason = stringPointer("parse-unsupported")
+	for name, records := range map[string][]Record{
+		"fingerprint on an agent key record": {null("a.key"), fingerprinted},
+		"one record missing":                 {null("a.key")},
+		"extra record":                       {null("a.key"), null("b.key"), null("c.key")},
+		"wrong reason":                       {null("a.key"), wrongReason},
+	} {
+		if err := checkDirectoryNullRecords(records, d); err == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+}
+
+func TestGeneratedPropertiesPinAgentKeyNullRecords(t *testing.T) {
+	p, err := LoadGeneratedProperties(filepath.Join(repoRoot(t), GeneratedPropertiesPath))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range p.RequiredNullDirs {
+		if d.Dir == ".gnupg/private-keys-v1.d" && d.Count == 2 && d.Reason == "unsupported-kind" && d.FingerprintScheme == "openpgp-fingerprint-v1" {
+			return
+		}
+	}
+	t.Fatal("generated-real properties do not require null agent key records")
+}
+
+func TestValidateGeneratedPropertiesRejectsBadDirectorySelector(t *testing.T) {
+	p, err := LoadGeneratedProperties(filepath.Join(repoRoot(t), GeneratedPropertiesPath))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, edit := range map[string]func(*DirectoryNullRecords){
+		"absolute dir": func(d *DirectoryNullRecords) { d.Dir = "/gnupg" },
+		"zero count":   func(d *DirectoryNullRecords) { d.Count = 0 },
+		"empty reason": func(d *DirectoryNullRecords) { d.Reason = "" },
+	} {
+		q := p
+		q.RequiredNullDirs = append([]DirectoryNullRecords(nil), p.RequiredNullDirs...)
+		edit(&q.RequiredNullDirs[0])
+		if err := validateGeneratedProperties(q); err == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
 }
