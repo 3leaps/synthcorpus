@@ -7,6 +7,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-10-13
+
 ### Added
 
 - GnuPG agent key specimens under `fixtures-agent/`: plaintext,
@@ -160,7 +162,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - The generator rejects Git worktrees and Git directories, stages output before
   publication, and restricts replacement to synthcorpus-owned directories.
 
-[Unreleased]: https://github.com/3leaps/synthcorpus/compare/v0.1.5...HEAD
+[Unreleased]: https://github.com/3leaps/synthcorpus/compare/v0.1.6...HEAD
+[0.1.6]: https://github.com/3leaps/synthcorpus/releases/tag/v0.1.6
 [0.1.5]: https://github.com/3leaps/synthcorpus/releases/tag/v0.1.5
 [0.1.4]: https://github.com/3leaps/synthcorpus/releases/tag/v0.1.4
 [0.1.3]: https://github.com/3leaps/synthcorpus/releases/tag/v0.1.3
